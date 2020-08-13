@@ -1,0 +1,323 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create the infra for the project
+Parameters:
+  sshKeyName:
+    Description: SSH Key to Use for Spark Cluster and Redshift
+    Type: AWS::EC2::KeyPair::KeyName
+  resourcePrefix:
+    Description: Prefix for all resources
+    Type: String
+    Default: udacity-capstone
+  rawBucketName:
+    Description: Name of the bucket to place the raw data in
+    Type: String
+    Default: raw-data
+  stagingBucketName:
+    Description: Name of the bucket to place the staging data in
+    Type: String
+    Default: staging-data
+  emrClusterReleaseVersion:
+    Description: Release label for the EMR cluster packages. Determines the versions of the applications to be installed
+    Type: String
+    Default: emr-5.30.1
+
+Resources:
+  redshiftRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join 
+        - '-'
+        - - !Ref resourcePrefix
+          - redhshift-cluster-role
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - redshift.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+  
+  emrRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join 
+        - '-'
+        - - !Ref resourcePrefix
+          - emr-cluster-role
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - elasticmapreduce.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+
+  emrEc2InstanceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join 
+        - '-'
+        - - !Ref resourcePrefix
+          - emr-cluster-ec2-instance-role
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceforEC2Role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+
+  emrEc2InstanceProfile:
+      Type: 'AWS::IAM::InstanceProfile'
+      Properties:
+        Path: /
+        Roles:
+          - !Ref emrEc2InstanceRole
+
+  capstoneRawDataBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - !Ref resourcePrefix
+          - !Ref rawBucketName
+  capstoneStagingDataBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - !Ref resourcePrefix
+          - !Ref stagingBucketName
+  emrLogsBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - !Ref resourcePrefix
+          - emr-cluster-logs
+
+  emrCluster:
+    Type: 'AWS::EMR::Cluster'
+    # not absolutely needed because the EMR cluster takes so long to initialize, but is the correct way to do things
+    DependsOn: emrSubnetRouteTableAssociation
+    Properties:
+      Name: !Join 
+        - '-'
+        - - !Ref resourcePrefix
+          - emr-cluster
+      Applications: 
+        - Name: Spark
+        - Name: Hadoop
+        - Name: Hive
+        - Name: Zeppelin
+      EbsRootVolumeSize: 10
+      ReleaseLabel: !Ref emrClusterReleaseVersion
+      JobFlowRole: !Ref emrEc2InstanceProfile
+      ServiceRole: !Ref emrRole
+      Instances:
+        Ec2KeyName: !Ref sshKeyName
+        Ec2SubnetId: !Ref emrSubnet
+        EmrManagedMasterSecurityGroup: !GetAtt emrMasterSecurityGroup.GroupId
+        EmrManagedSlaveSecurityGroup: !GetAtt emrSlaveSecurityGroup.GroupId
+        KeepJobFlowAliveWhenNoSteps: true
+        MasterInstanceFleet:
+          Name: Master Instance Fleet
+          TargetOnDemandCapacity: 1
+          InstanceTypeConfigs:
+            - InstanceType: m5.xlarge
+        CoreInstanceFleet:
+          Name: Core Instance Fleet
+          TargetOnDemandCapacity: 2
+          InstanceTypeConfigs:
+            - InstanceType: m5.xlarge
+      LogUri: !Join 
+        - ''
+        - - 's3://:'
+          - !Ref emrLogsBucket
+          - /emr-logs
+
+  projectVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+
+  projectVPCInternetGateway:
+    Type: AWS::EC2::InternetGateway
+  
+  projectVPCInternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref projectVPC
+      InternetGatewayId: !Ref projectVPCInternetGateway
+
+  projectVPCRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref projectVPC
+
+  projectVPCRouteToInternet:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref projectVPCRouteTable
+       DestinationCidrBlock: 0.0.0.0/0
+       GatewayId: !Ref projectVPCInternetGateway
+  
+  emrSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref emrSubnet
+      RouteTableId: !Ref projectVPCRouteTable
+
+  emrSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select 
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      VpcId: !Ref projectVPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+
+  emrMasterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Join 
+        - ''
+        - - !Ref resourcePrefix
+          - -emr-master-security-group
+      GroupDescription: Security Group for master nodes of the EMR Cluster 
+      VpcId: !Ref projectVPC
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+
+  emrSlaveSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Join 
+        - ''
+        - - !Ref resourcePrefix
+          - -emr-slave-security-group
+      GroupDescription: Security Group for slave nodes of the EMR Cluster
+      VpcId: !Ref projectVPC
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+
+  emrMasterSecurityGroupIngressAllowMasterTCP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt emrMasterSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref emrMasterSecurityGroup
+
+  emrMasterSecurityGroupIngressAllowSlaveTCP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt emrMasterSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref emrMasterSecurityGroup
+  
+  emrMasterSecurityGroupIngressAllowAllTCP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt emrMasterSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+  
+  emrSlaveSecurityGroupIngressAllowMasterTCP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt emrSlaveSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref emrMasterSecurityGroup
+  
+  emrSlaveSecurityGroupIngressAllowSlaveTCP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt emrSlaveSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref emrSlaveSecurityGroup
+  
+  emrSlaveSecurityGroupIngressAllowMasterUDP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt emrSlaveSecurityGroup.GroupId
+      IpProtocol: udp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref emrMasterSecurityGroup
+  
+  emrSlaveSecurityGroupIngressAllowSlaveUDP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt emrSlaveSecurityGroup.GroupId
+      IpProtocol: udp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref emrSlaveSecurityGroup
+  
+  emrSlaveSecurityGroupIngressAllowMasterICMP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt emrSlaveSecurityGroup.GroupId
+      IpProtocol: icmp
+      FromPort: -1
+      ToPort: -1
+      SourceSecurityGroupId: !Ref emrMasterSecurityGroup
+  
+  emrSlaveSecurityGroupIngressAllowSlaveICMP:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt emrSlaveSecurityGroup.GroupId
+      IpProtocol: icmp
+      FromPort: -1
+      ToPort: -1
+      SourceSecurityGroupId: !Ref emrSlaveSecurityGroup
+  
+  projectResourceGroup:
+    Type: "AWS::ResourceGroups::Group"
+    Properties:
+      Name: !Join 
+        - ''
+        - - !Ref resourcePrefix
+          - -resource-group
+      ResourceQuery:
+        Type: CLOUDFORMATION_STACK_1_0
+        Query:
+          StackIdentifier: !Ref AWS::StackId
+          
+
+Outputs:
+  rawBucketName:
+    Value: !Ref capstoneRawDataBucket
+  stagingBucketName:
+    Value: !Ref capstoneStagingDataBucket
+  redshiftRoleArn:
+    Value: !GetAtt redshiftRole.Arn
+  emrClusterPublicDNS:
+    Value: !GetAtt emrCluster.MasterPublicDNS
+  resourceGroupName:
+    Value: !Ref projectResourceGroup
