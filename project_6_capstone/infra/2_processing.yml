@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Create the infra for the project
+Description: Processing Infrastructure for the udacity capstone project
 Parameters:
   sshKeyName:
     Description: SSH Key to Use for Spark Cluster and Redshift
@@ -8,14 +8,9 @@ Parameters:
     Description: Prefix for all resources
     Type: String
     Default: udacity-capstone
-  rawBucketName:
-    Description: Name of the bucket to place the raw data in
+  bootstrapActionFilePath:
+    Description: S3 bucket path to a file including bootstrap actions for the EMR cluster
     Type: String
-    Default: raw-data
-  stagingBucketName:
-    Description: Name of the bucket to place the staging data in
-    Type: String
-    Default: staging-data
   emrClusterReleaseVersion:
     Description: Release label for the EMR cluster packages. Determines the versions of the applications to be installed
     Type: String
@@ -78,30 +73,20 @@ Resources:
               - ec2.amazonaws.com
             Action:
               - 'sts:AssumeRole'
-
   emrEc2InstanceProfile:
       Type: 'AWS::IAM::InstanceProfile'
       Properties:
+        InstanceProfileName:  !Join 
+          - '-'
+          - - !Ref resourcePrefix
+            - emr-cluster-ec2-instance-profile
         Path: /
         Roles:
           - !Ref emrEc2InstanceRole
 
-  capstoneRawDataBucket:
-    Type: 'AWS::S3::Bucket'
-    Properties:
-      BucketName: !Join 
-        - '-'
-        - - !Ref resourcePrefix
-          - !Ref rawBucketName
-  capstoneStagingDataBucket:
-    Type: 'AWS::S3::Bucket'
-    Properties:
-      BucketName: !Join 
-        - '-'
-        - - !Ref resourcePrefix
-          - !Ref stagingBucketName
   emrLogsBucket:
     Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Delete
     Properties:
       BucketName: !Join 
         - '-'
@@ -111,7 +96,9 @@ Resources:
   emrCluster:
     Type: 'AWS::EMR::Cluster'
     # not absolutely needed because the EMR cluster takes so long to initialize, but is the correct way to do things
-    DependsOn: emrSubnetRouteTableAssociation
+    DependsOn: 
+      - emrSubnetRouteTableAssociation
+    #  - projectVPC
     Properties:
       Name: !Join 
         - '-'
@@ -119,10 +106,12 @@ Resources:
           - emr-cluster
       Applications: 
         - Name: Spark
+        - Name: Livy
         - Name: Hadoop
         - Name: Hive
         - Name: Zeppelin
       EbsRootVolumeSize: 10
+      VisibleToAllUsers: true
       ReleaseLabel: !Ref emrClusterReleaseVersion
       JobFlowRole: !Ref emrEc2InstanceProfile
       ServiceRole: !Ref emrRole
@@ -142,16 +131,22 @@ Resources:
           TargetOnDemandCapacity: 2
           InstanceTypeConfigs:
             - InstanceType: m5.xlarge
+      BootstrapActions:
+        - Name: Install custom Python packages
+          ScriptBootstrapAction: 
+            Path: !Ref bootstrapActionFilePath
       LogUri: !Join 
         - ''
-        - - 's3://:'
+        - - 's3://'
           - !Ref emrLogsBucket
           - /emr-logs
 
   projectVPC:
     Type: AWS::EC2::VPC
+    DeletionPolicy: Delete
     Properties:
       CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
       EnableDnsSupport: true
 
   projectVPCInternetGateway:
@@ -183,6 +178,8 @@ Resources:
 
   emrSubnet:
     Type: AWS::EC2::Subnet
+    #DependsOn:
+    #  - emrSubnetRouteTableAssociation
     Properties:
       AvailabilityZone: !Select 
         - 0
@@ -198,8 +195,16 @@ Resources:
         - ''
         - - !Ref resourcePrefix
           - -emr-master-security-group
-      GroupDescription: Security Group for master nodes of the EMR Cluster 
+      GroupDescription: !Join 
+        - ' '
+        - - !Ref resourcePrefix
+          - Security Group for the master nodes of the EMR Cluster 
       VpcId: !Ref projectVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: "-1"
           CidrIp: 0.0.0.0/0
@@ -211,7 +216,10 @@ Resources:
         - ''
         - - !Ref resourcePrefix
           - -emr-slave-security-group
-      GroupDescription: Security Group for slave nodes of the EMR Cluster
+      GroupDescription: !Join 
+        - ' '
+        - - !Ref resourcePrefix
+          - Security Group for slave nodes of the EMR Cluster
       VpcId: !Ref projectVPC
       SecurityGroupEgress:
         - IpProtocol: "-1"
@@ -308,13 +316,8 @@ Resources:
         Type: CLOUDFORMATION_STACK_1_0
         Query:
           StackIdentifier: !Ref AWS::StackId
-          
 
 Outputs:
-  rawBucketName:
-    Value: !Ref capstoneRawDataBucket
-  stagingBucketName:
-    Value: !Ref capstoneStagingDataBucket
   redshiftRoleArn:
     Value: !GetAtt redshiftRole.Arn
   emrClusterPublicDNS:
