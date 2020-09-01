@@ -12,19 +12,19 @@
     ```
     aws configure --profile udacity
     ```
-    
+
 1. Create the Infrastructure needed with cloudformation
 
     - From the AWS console, choose whichever region where you want to deploy the infrastrucutre in, go to EC2 -> Key Pairs and create a new key pair, ex. `udacity_ec2_key`, this is the SSH Key that will be used for the Spark and Redshift clusters
 
     - create the cloudformation stack. This will create the following resources:
+        - S3 bucket for raw data
+        - S3 bucket for staging data
         - VPC
         - Subnet for Redshift
         - Subnet for EMR
         - EMR cluster
         - Redshift cluster
-        - S3 bucket for raw data
-        - S3 bucket for staging data
     ```
     AWS_REGION=<your_region>
     AWS_SSH_KEY=<your_key>
@@ -35,7 +35,7 @@
     aws cloudformation deploy \
         --region $AWS_REGION \
         --stack-name $DATA_STACK_NAME \
-        --template-file ./infra/1_data.yml \
+        --template-file ./infra/aws/1_data.yml \
         --tags project=udacity-capstone \
         --parameter-overrides \
         rawBucketName=raw-data \
@@ -43,20 +43,19 @@
         
     UTIL_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $DATA_STACK_NAME --output text | grep -oP "OUTPUTS\s+utilBucketName\s+\K(.*)")
 
+    # copy the EMR server initialization script to a bucket where EMR can download it from during bootstrapping
     aws s3 cp ./infra/spark/emr_server_setup.sh s3://$UTIL_BUCKET_NAME/
 
     aws cloudformation deploy \
         --region $AWS_REGION \
         --stack-name udacity-capstone-processing-stack \
-        --template-file ./infra/2_processing.yml \
+        --template-file ./infra/aws/2_processing.yml \
         --capabilities CAPABILITY_NAMED_IAM \
         --tags project=udacity-capstone \
         --parameter-overrides \
         sshKeyName=$AWS_SSH_KEY \
         resourcePrefix=udacity-capstone \
         bootstrapActionFilePath=s3://$UTIL_BUCKET_NAME/emr_server_setup.sh
-
-    aws cloudformation describe-stacks --stack-name udacity-capstone-processing-stack > stack_output.json
     ```
 
 1. Delete the Cloudformation stack after you are done
@@ -99,21 +98,11 @@
     
 1. Create a bridge connection to the livy server
     ```
-    HOST=ec2-18-237-104-30.us-west-2.compute.amazonaws.com
+    HOST=<dns name of your EMR master>
     ssh -i ~/.ssh/udacity_ec2_key.pem -4 -NL 8998:$HOST:8998 hadoop@$HOST
     ```
     we use `-4` is because ipv6 is the default and it leads to an error `unable to bind to address`
 
-    ```
-    ssh -v -i ./udacity_ec2_key.pem -4 -N \
-        -L 8020:$HOST:8020 \
-        -L 8025:$HOST:8025 \
-        -L 8032:$HOST:8032 \
-        -L 8030:$HOST:8030 \
-        -L 19888:$HOST:19888 \
-        -L 20888:$HOST:20888 \
-        hadoop@$HOST
-    ```
 1. Create a dynamic bridge to be able to see all internal UIs
     ```
     ssh -i ~/.ssh/udacity_ec2_key.pem -ND 8157 hadoop@$HOST
@@ -137,7 +126,8 @@
 
     AWS_ACCESS_KEY_ID=<YOUR ACCESS TOKEN>
     AWS_ACCESS_KEY_SECRET=<YOUR ACCESS TOKEN SECRET>
-    airflow connections -a --conn_id s3 --conn_type s3 --conn_login $AWS_ACCESS_KEY_ID --conn_password $AWS_ACCESS_KEY_SECRET
+
+    airflow connections -a --conn_id s3 --conn_type s3 --conn_login $AWS_ACCESS_KEY_ID --conn_password $AWS_SECRET_ACCESS_KEY
     airflow variables --set raw_data_bucket udacity-capstone-raw-data
     airflow variables --set raw_files_folder /data/18-83510-I94-Data-2016
     airflow variables --set gdp_data_url https://datahub.io/core/gdp/r/gdp.csv

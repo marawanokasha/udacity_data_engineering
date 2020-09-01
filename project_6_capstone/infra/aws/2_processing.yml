@@ -86,7 +86,7 @@ Resources:
 
   emrLogsBucket:
     Type: 'AWS::S3::Bucket'
-    DeletionPolicy: Delete
+    DeletionPolicy: Retain
     Properties:
       BucketName: !Join 
         - '-'
@@ -98,7 +98,8 @@ Resources:
     # not absolutely needed because the EMR cluster takes so long to initialize, but is the correct way to do things
     DependsOn: 
       - emrSubnetRouteTableAssociation
-    #  - projectVPC
+      - emrSubnet
+      - projectVPC
     Properties:
       Name: !Join 
         - '-'
