@@ -1,0 +1,1 @@
+This directory will contain the zipped python lib folder that we want to make available to our spark jobs

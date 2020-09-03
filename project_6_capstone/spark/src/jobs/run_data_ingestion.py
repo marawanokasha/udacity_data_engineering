@@ -1,6 +1,7 @@
 from urllib.parse import urlparse
 import logging
 import os
+import argparse
 import boto3
 from pyspark.sql import SparkSession
 
@@ -8,7 +9,7 @@ from pyspark.sql import functions as F
 from pyspark.sql import Window
 from pyspark.sql.types import IntegerType, FloatType, LongType
 
-from capstone.data_manipulation import get_date_from_i94_date_int, normalize_gender, normalize_match_flag, \
+from data_manipulation import get_date_from_i94_date_int, normalize_gender, normalize_match_flag, \
     normalize_mode, normalize_visa_category
 
 
@@ -48,7 +49,7 @@ def read_sas_data(spark, path: str, columns_to_read=None):
         for key in s3_objects['Contents']:
             file_key = key['Key']
             print("Reading File: {}".format(file_key))
-            logging.warning("Reading File: {}".format(file_key))
+            logging.info("Reading File: {}".format(file_key))
             file_df = (
                 spark.read
                 .format(SAS_FORMAT_READER)
@@ -187,6 +188,8 @@ def main(immigration_data_path: str, dimension_root_path: str, output_path: str)
         .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:2.7.0,saurfang:spark-sas7bdat:2.1.0-s_2.11")\
         .getOrCreate()
 
+    print(spark.conf.get("spark.jars.packages"))
+    
     raw_data = read_sas_data(spark, immigration_data_path, VALID_COLUMNS)
 
     clean_df = clean_immigration_data(raw_data)
@@ -234,12 +237,24 @@ def main(immigration_data_path: str, dimension_root_path: str, output_path: str)
         .mode("overwrite")
         .parquet(os.path.join(output_path, "gdp_data"))
     )
+    
+    logging.info(f"Finished Preprocessing, exiting")
+
+    spark.stop()
 
 
 if __name__ == "__main__":
-    RAW_BUCKET_URL = "s3://udacity-capstone-raw-data"
-    STAGING_BUCKET_URL = "s3://udacity-capstone-staging-data"
-    DATA_PATH = f"{RAW_BUCKET_URL}/i94-data"
-    OUTPUT_DATA_PATH = STAGING_BUCKET_URL
 
-    main(DATA_PATH, RAW_BUCKET_URL, OUTPUT_DATA_PATH)
+    logging.basicConfig(
+        format='[%(asctime)s] %(filename)s(%(lineno)d) %(levelname)s - %(message)s',
+        level=logging.INFO
+    )
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--raw-data-path", required=True, type=str, help="Path containing the raw data")
+    parser.add_argument("--staging-data-path", required=True, type=str, help="Path to put the staging data in")
+    args = parser.parse_args()
+
+    immigration_data_path = f"{args.raw_data_path}/i94-data"
+
+    main(immigration_data_path, args.raw_data_path, args.staging_data_path)

@@ -1,11 +1,12 @@
 #/bin/bash
 
-pip install numpy werkzeug==0.15.4 apache-airflow[postgres,aws]
-
 export AIRFLOW_HOME=/opt/airflow
 
+pip install --ignore-installed PyYAML
+pip install numpy werkzeug==0.15.4 apache-airflow[postgres,amazon,apache.livy]
+
 AIRFLOW_CF_FILE=$AIRFLOW_HOME/airflow.cfg
-DAG_FOLDER=/home/workspace/airflow/dags
+DAG_FOLDER=/home/workspace/airflow
 
 # initialize the airflow DB, this creates the config files in $AIRFLOW_HOME
 airflow initdb

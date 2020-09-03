@@ -86,6 +86,7 @@ Resources:
 
   emrLogsBucket:
     Type: 'AWS::S3::Bucket'
+    # setting the DeletionPolicy to Retain because we can't delete a non-empty bucket with cloudformation
     DeletionPolicy: Retain
     Properties:
       BucketName: !Join 
@@ -321,7 +322,13 @@ Resources:
 Outputs:
   redshiftRoleArn:
     Value: !GetAtt redshiftRole.Arn
+  emrClusterId:
+    Value: !Ref emrCluster
+  emrClusterName:
+    Value: !GetAtt emrCluster.Name
   emrClusterPublicDNS:
     Value: !GetAtt emrCluster.MasterPublicDNS
   resourceGroupName:
     Value: !Ref projectResourceGroup
+  emrLogsBucketName:
+    Value: !Ref emrLogsBucket

@@ -56,6 +56,10 @@
         sshKeyName=$AWS_SSH_KEY \
         resourcePrefix=udacity-capstone \
         bootstrapActionFilePath=s3://$UTIL_BUCKET_NAME/emr_server_setup.sh
+
+    cd ./spark/src/lib & zip -FS -r ../../dist/lib.zip . & cd -
+    aws s3 cp --recursive ./spark/src/jobs s3://$UTIL_BUCKET_NAME/spark/jobs/
+    aws s3 cp ./spark/dist/lib.zip s3://$UTIL_BUCKET_NAME/spark/
     ```
 
 1. Delete the Cloudformation stack after you are done
@@ -64,6 +68,10 @@
     aws cloudformation delete-stack --stack-name udacity-processing-capstone-stack
     
     aws cloudformation delete-stack --stack-name udacity-data-capstone-stack
+
+    # explicitly delete the emr logs bucket
+    EMR_LOGS_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name udacity-processing-capstone-stack --output text | grep -oP "OUTPUTS\s+emrLogsBucketName\s+\K(.*)")
+    aws s3 rb s3://$EMR_LOGS_BUCKET_NAME
     ```
 ### Spark, Livy and Sparkmagic
 
@@ -128,11 +136,20 @@
     AWS_ACCESS_KEY_SECRET=<YOUR ACCESS TOKEN SECRET>
 
     airflow connections -a --conn_id s3 --conn_type s3 --conn_login $AWS_ACCESS_KEY_ID --conn_password $AWS_SECRET_ACCESS_KEY
+    airflow connections -a --conn_id aws --conn_type aws --conn_login $AWS_ACCESS_KEY_ID --conn_password $AWS_SECRET_ACCESS_KEY --conn_extra {"region_name": "$AWS_REGION"}
+    
     airflow variables --set raw_data_bucket udacity-capstone-raw-data
+    airflow variables --set staging_data_bucket udacity-capstone-staging-data
+    airflow variables --set script_bucket udacity-capstone-util-bucket
+
+
     airflow variables --set raw_files_folder /data/18-83510-I94-Data-2016
     airflow variables --set gdp_data_url https://datahub.io/core/gdp/r/gdp.csv
     airflow variables --set raw_data_description_file /home/workspace/I94_SAS_Labels_Descriptions.SAS
 
+    airflow variables --set emr_cluster_name udacity-capstone-emr-cluster
+
+    ```
 1. Start Airflow
     ```
     airflow scheduler -D & airflow webserver -D
