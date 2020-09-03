@@ -324,8 +324,6 @@ Outputs:
     Value: !GetAtt redshiftRole.Arn
   emrClusterId:
     Value: !Ref emrCluster
-  emrClusterName:
-    Value: !GetAtt emrCluster.Name
   emrClusterPublicDNS:
     Value: !GetAtt emrCluster.MasterPublicDNS
   resourceGroupName:

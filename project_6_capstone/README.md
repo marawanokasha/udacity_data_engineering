@@ -57,9 +57,6 @@
         resourcePrefix=udacity-capstone \
         bootstrapActionFilePath=s3://$UTIL_BUCKET_NAME/emr_server_setup.sh
 
-    cd ./spark/src/lib & zip -FS -r ../../dist/lib.zip . & cd -
-    aws s3 cp --recursive ./spark/src/jobs s3://$UTIL_BUCKET_NAME/spark/jobs/
-    aws s3 cp ./spark/dist/lib.zip s3://$UTIL_BUCKET_NAME/spark/
     ```
 
 1. Delete the Cloudformation stack after you are done
@@ -67,11 +64,12 @@
     ```
     aws cloudformation delete-stack --stack-name udacity-processing-capstone-stack
     
-    aws cloudformation delete-stack --stack-name udacity-data-capstone-stack
-
-    # explicitly delete the emr logs bucket
+    # get the name of the emr logs bucket because we have to explicitly delete it since cloudformation can't delete a non-empty bucket
     EMR_LOGS_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name udacity-processing-capstone-stack --output text | grep -oP "OUTPUTS\s+emrLogsBucketName\s+\K(.*)")
-    aws s3 rb s3://$EMR_LOGS_BUCKET_NAME
+    
+    aws cloudformation delete-stack --stack-name udacity-data-capstone-stack
+    # remove the bucket forcibly
+    aws s3 rb --force s3://$EMR_LOGS_BUCKET_NAME
     ```
 ### Spark, Livy and Sparkmagic
 
@@ -115,11 +113,12 @@
     ```
     ssh -i ~/.ssh/udacity_ec2_key.pem -ND 8157 hadoop@$HOST
     ```
-
-1. Edit the `core-site.xml` and `yarn-site.xml` to use localhost instead of the internal dns names
+    
+1. Upload the Spark Jobs and libraries to S3 so they can be used by the Spark jobs
     ```
-    sed -i 's|ip-10-0-1-107.us-west-2.compute.internal|localhost|g' /etc/hadoop/conf/yarn-site.xml
-    sed -i 's|ip-10-0-1-107.us-west-2.compute.internal|localhost|g' /etc/hadoop/conf/yarn-site.xml
+    cd ./spark/src/lib && zip -FS -r ../../dist/lib.zip . && cd -
+    aws s3 cp --recursive ./spark/src/jobs s3://$UTIL_BUCKET_NAME/spark/jobs/
+    aws s3 cp ./spark/dist/lib.zip s3://$UTIL_BUCKET_NAME/spark/
     ```
 
 ### Airflow    
@@ -132,16 +131,13 @@
 1. Add Airflow connections and variables
     ```
 
-    AWS_ACCESS_KEY_ID=<YOUR ACCESS TOKEN>
-    AWS_ACCESS_KEY_SECRET=<YOUR ACCESS TOKEN SECRET>
-
     airflow connections -a --conn_id s3 --conn_type s3 --conn_login $AWS_ACCESS_KEY_ID --conn_password $AWS_SECRET_ACCESS_KEY
-    airflow connections -a --conn_id aws --conn_type aws --conn_login $AWS_ACCESS_KEY_ID --conn_password $AWS_SECRET_ACCESS_KEY --conn_extra {"region_name": "$AWS_REGION"}
+    airflow connections -a --conn_id aws --conn_type aws --conn_login $AWS_ACCESS_KEY_ID --conn_password $AWS_SECRET_ACCESS_KEY --conn_extra "{\"region_name\": \"$AWS_REGION\"}"
+    airflow connections -a --conn_id livy --conn_type http --conn_host localhost --conn_port 8998
     
     airflow variables --set raw_data_bucket udacity-capstone-raw-data
     airflow variables --set staging_data_bucket udacity-capstone-staging-data
     airflow variables --set script_bucket udacity-capstone-util-bucket
-
 
     airflow variables --set raw_files_folder /data/18-83510-I94-Data-2016
     airflow variables --set gdp_data_url https://datahub.io/core/gdp/r/gdp.csv
@@ -150,6 +146,7 @@
     airflow variables --set emr_cluster_name udacity-capstone-emr-cluster
 
     ```
+
 1. Start Airflow
     ```
     airflow scheduler -D & airflow webserver -D

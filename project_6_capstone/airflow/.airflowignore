@@ -1,0 +1,3 @@
+# if you are running airflow inside jupyterlab, the py files are 
+# replicated to the .ipynb_checkpoints folder too, so we exclude it from airflow search
+.ipynb_checkpoints
