@@ -1,5 +1,12 @@
 ## Installation
 
+### Configuration
+
+All the different elements in this project rely on a unified set of environment variables, that should be placed in the file `.env` at the root. Check the file `.env.template` for the values needed. In order to source the environment and prepare the environment variables, run:
+```
+source ./setup_env.sh
+```
+
 ### Infrastructure
 
 1. Install the AWS CLI
@@ -26,11 +33,8 @@
         - EMR cluster
         - Redshift cluster
     ```
-    AWS_REGION=<your_region>
-    AWS_SSH_KEY=<your_key>
 
-    export AWS_PROFILE=udacity
-    DATA_STACK_NAME=udacity-capstone-data-stack
+    source ./setup_env.sh --no-cf
 
     aws cloudformation deploy \
         --region $AWS_REGION \
@@ -40,15 +44,15 @@
         --parameter-overrides \
         rawBucketName=raw-data \
         stagingBucketName=staging-data
-        
+
     UTIL_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $DATA_STACK_NAME --output text | grep -oP "OUTPUTS\s+utilBucketName\s+\K(.*)")
 
-    # copy the EMR server initialization script to a bucket where EMR can download it from during bootstrapping
+    # copy the EMR server initialization script to a bucket where EMR can download it during bootstrapping
     aws s3 cp ./infra/spark/emr_server_setup.sh s3://$UTIL_BUCKET_NAME/
 
     aws cloudformation deploy \
         --region $AWS_REGION \
-        --stack-name udacity-capstone-processing-stack \
+        --stack-name $PROCESSING_STACK_NAME \
         --template-file ./infra/aws/2_processing.yml \
         --capabilities CAPABILITY_NAMED_IAM \
         --tags project=udacity-capstone \
@@ -62,15 +66,16 @@
 1. Delete the Cloudformation stack after you are done
 
     ```
-    aws cloudformation delete-stack --stack-name udacity-processing-capstone-stack
+    aws cloudformation delete-stack --stack-name $PROCESSING_STACK_NAME
     
     # get the name of the emr logs bucket because we have to explicitly delete it since cloudformation can't delete a non-empty bucket
-    EMR_LOGS_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name udacity-processing-capstone-stack --output text | grep -oP "OUTPUTS\s+emrLogsBucketName\s+\K(.*)")
+    EMR_LOGS_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $PROCESSING_STACK_NAME --output text | grep -oP "OUTPUTS\s+emrLogsBucketName\s+\K(.*)")
     
-    aws cloudformation delete-stack --stack-name udacity-data-capstone-stack
+    aws cloudformation delete-stack --stack-name $DATA_STACK_NAME
     # remove the bucket forcibly
     aws s3 rb --force s3://$EMR_LOGS_BUCKET_NAME
     ```
+
 ### Spark, Livy and Sparkmagic
 
 1. Install Requirements
@@ -105,15 +110,15 @@
 1. Create a bridge connection to the livy server
     ```
     HOST=<dns name of your EMR master>
-    ssh -i ~/.ssh/udacity_ec2_key.pem -4 -NL 8998:$HOST:8998 hadoop@$HOST
+    ssh -i ~/.ssh/udacity_ec2_key.pem -4 -NL 8998:$EMR_HOST:8998 hadoop@$EMR_HOST
     ```
     we use `-4` is because ipv6 is the default and it leads to an error `unable to bind to address`
 
 1. Create a dynamic bridge to be able to see all internal UIs
     ```
-    ssh -i ~/.ssh/udacity_ec2_key.pem -ND 8157 hadoop@$HOST
+    ssh -i ~/.ssh/udacity_ec2_key.pem -ND 8157 hadoop@$EMR_HOST
     ```
-    
+
 1. Upload the Spark Jobs and libraries to S3 so they can be used by the Spark jobs
     ```
     cd ./spark/src/lib && zip -FS -r ../../dist/lib.zip . && cd -
@@ -126,6 +131,10 @@
     ```
     ./infra/airflow/setup_airflow.sh
     
+    ```
+1. Prepare the environment
+    ```
+    source ./setup_env.sh
     ```
 
 1. Add Airflow connections and variables
