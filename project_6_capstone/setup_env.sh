@@ -1,7 +1,11 @@
 #! /bin/bash
 
+echo "---- Importing variables from the .env file..."
 source ./.env
-export AWS_PROFILE=$AWS_PROFILE
+# export AWS_PROFILE=$AWS_PROFILE
+export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+export AWS_REGION=$AWS_REGION
 
 # Whether to also export the variables that are looked up from the cloud formation stacks
 GET_STACK_VARS=1

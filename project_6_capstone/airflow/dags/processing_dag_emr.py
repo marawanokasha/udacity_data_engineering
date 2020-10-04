@@ -5,18 +5,18 @@
 import datetime
 from pathlib import Path
 
-from airflow.models import DAG, Variable
-from airflow.operators.python_operator import PythonOperator
-from airflow.operators.dummy_operator import DummyOperator
-
-from airflow.contrib.operators.emr_add_steps_operator import EmrAddStepsOperator
+from airflow.contrib.operators.emr_add_steps_operator import \
+    EmrAddStepsOperator
 from airflow.contrib.sensors.emr_step_sensor import EmrStepSensor
+from airflow.models import DAG, Variable
+from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.python_operator import PythonOperator
 
-from capstone.constants import DAGVariables, Connections
+from capstone.constants import Connections, DAGVariables
 
-EMR_CLUSTER_NAME_VARIABLE = "emr_cluster_name"
 SPARK_JOB_FILE = "jobs/run_data_processing.py"
 
+SPARK_TASK_ID = 'processing_task'
 
 # Request schema https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/emr.html#EMR.Client.add_job_flow_steps
 # https://stackoverflow.com/questions/36706512/how-do-you-automate-pyspark-jobs-on-emr-using-boto3-or-otherwise
@@ -54,8 +54,8 @@ dag = DAG(
 )
 
 processing_task = EmrAddStepsOperator(
-    task_id='processing_task',
-    job_flow_name=Variable.get(EMR_CLUSTER_NAME_VARIABLE),
+    task_id=SPARK_TASK_ID,
+    job_flow_name=Variable.get(DAGVariables.EMR_CLUSTER_NAME_VARIABLE),
     aws_conn_id=Connections.AWS_CONNECTION_ID,
     steps=SPARK_STEPS,
     cluster_states=["WAITING"],
@@ -66,8 +66,8 @@ processing_task = EmrAddStepsOperator(
 
 task_checker = EmrStepSensor(
     task_id='watch_step',
-    job_flow_id="{{ task_instance.xcom_pull('processing_task', key='job_flow_id') }}",
-    step_id="{{ task_instance.xcom_pull(task_ids='processing_task', key='return_value')[0] }}",
+    job_flow_id="{{ task_instance.xcom_pull('%s', key='job_flow_id') }}" % SPARK_TASK_ID,
+    step_id="{{ task_instance.xcom_pull(task_ids='%s', key='return_value')[0] }}" % SPARK_TASK_ID,
     aws_conn_id=Connections.AWS_CONNECTION_ID,
     dag=dag
 )

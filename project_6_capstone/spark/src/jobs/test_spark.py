@@ -8,7 +8,7 @@ logging.info("hellllllllllllllllllloooooooooooooooooooooo")
 logging.warning("2222222222222222222222222222222222222222")
 print("pppppppppppppppppppppppppppppppp")
 
-from data_manipulation import normalize_visa_category
+from feature_utils import normalize_visa_category
 
 
 print(sys.argv)

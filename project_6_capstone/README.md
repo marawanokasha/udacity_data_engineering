@@ -84,6 +84,8 @@ source ./setup_env.sh
     ```
 
 1. Install Spark Magic
+
+    - Linux installation:
     ```
     pip install sparkmagic
     # enable the jupyter widgets
@@ -96,12 +98,13 @@ source ./setup_env.sh
     ```
 
 
-    Local Install
+    - Windows installation:
     ```
     conda install -c conda-forge sparkmagic
     conda install -c conda-forge jupyter_nbextensions_configurator
 
-    C:
+    # go to the sparkmagic location as given by pip show sparkmagic
+    cd C:/<spark magic location>
 
     jupyter-kernelspec install sparkmagic/kernels/pysparkkernel
     jupyter serverextension enable --py sparkmagic
@@ -109,7 +112,6 @@ source ./setup_env.sh
     
 1. Create a bridge connection to the livy server
     ```
-    HOST=<dns name of your EMR master>
     ssh -i ~/.ssh/udacity_ec2_key.pem -4 -NL 8998:$EMR_HOST:8998 hadoop@$EMR_HOST
     ```
     we use `-4` is because ipv6 is the default and it leads to an error `unable to bind to address`
@@ -130,7 +132,6 @@ source ./setup_env.sh
 1. Install Airflow
     ```
     ./infra/airflow/setup_airflow.sh
-    
     ```
 1. Prepare the environment
     ```
@@ -139,26 +140,19 @@ source ./setup_env.sh
 
 1. Add Airflow connections and variables
     ```
-
-    airflow connections -a --conn_id s3 --conn_type s3 --conn_login $AWS_ACCESS_KEY_ID --conn_password $AWS_SECRET_ACCESS_KEY
-    airflow connections -a --conn_id aws --conn_type aws --conn_login $AWS_ACCESS_KEY_ID --conn_password $AWS_SECRET_ACCESS_KEY --conn_extra "{\"region_name\": \"$AWS_REGION\"}"
-    airflow connections -a --conn_id livy --conn_type http --conn_host localhost --conn_port 8998
-    
-    airflow variables --set raw_data_bucket udacity-capstone-raw-data
-    airflow variables --set staging_data_bucket udacity-capstone-staging-data
-    airflow variables --set script_bucket udacity-capstone-util-bucket
-
-    airflow variables --set raw_files_folder /data/18-83510-I94-Data-2016
-    airflow variables --set gdp_data_url https://datahub.io/core/gdp/r/gdp.csv
-    airflow variables --set raw_data_description_file /home/workspace/I94_SAS_Labels_Descriptions.SAS
-
-    airflow variables --set emr_cluster_name udacity-capstone-emr-cluster
-
+    source ./infra/airflow/init_pipeline.sh
     ```
 
 1. Start Airflow
     ```
     airflow scheduler -D & airflow webserver -D
+    ```
+
+1. Start tunnel for Livy
+    ```
+    # install the SSH client if needed
+    sudo apt-get install -y openssh-client
+    ssh -i ~/.ssh/udacity_ec2_key.pem -4 -NL 8998:$EMR_HOST:8998 hadoop@$EMR_HOST
     ```
 
 1. Stop Airflow

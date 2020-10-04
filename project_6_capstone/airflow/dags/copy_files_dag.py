@@ -10,9 +10,14 @@ from capstone.constants import Connections, DAGVariables
 
 
 RAW_FILES_FOLDER_VARIABLE = "raw_files_folder"
-DATA_DESCRIPTION_FILE_VARIABLE = "raw_data_description_file"
 GDP_DATA_URL_VARIABLE = "gdp_data_url"
 
+LOCAL_FILES_COPY_TASKS = [
+    ("copy_country_codes_data", "./data/country_codes.csv"),
+    ("copy_country_iso_data", "./data/country_iso.csv"),
+    ("copy_states_data", "./data/states.csv"),
+    ("copy_ports_data", "./data/ports.csv"),
+]
 
 PROJECT_ROOT_FOLDER = Path(__file__).parent.parent.parent.absolute()
 
@@ -33,8 +38,8 @@ dag = DAG(
 start_operator = DummyOperator(task_id='Begin_execution', dag=dag)
 
 
-copy_raw_data = PythonOperator(
-    task_id='copy_raw_data',
+copy_immigration_data = PythonOperator(
+    task_id='copy_immigration_data',
     provide_context=True,
     python_callable=copy_files_to_s3,
     dag=dag,
@@ -43,18 +48,6 @@ copy_raw_data = PythonOperator(
         "bucket_name": Variable.get(DAGVariables.RAW_BUCKET_NAME_VARIABLE),
         "path": Variable.get(RAW_FILES_FOLDER_VARIABLE),
         "prefix": "i94-data"
-    }
-)
-
-copy_data_description = PythonOperator(
-    task_id='copy_data_description',
-    provide_context=True,
-    python_callable=copy_files_to_s3,
-    dag=dag,
-    op_kwargs={
-        "connection_id": Connections.S3_CONNECTION_ID,
-        "bucket_name": Variable.get(DAGVariables.RAW_BUCKET_NAME_VARIABLE),
-        "path": Variable.get(DATA_DESCRIPTION_FILE_VARIABLE)
     }
 )
 
@@ -70,49 +63,24 @@ download_and_copy_gdp_data = PythonOperator(
     }
 )
 
-copy_country_codes_data = PythonOperator(
-    task_id='copy_country_codes_data',
-    provide_context=True,
-    python_callable=copy_files_to_s3,
-    dag=dag,
-    op_kwargs={
-        "connection_id": Connections.S3_CONNECTION_ID,
-        "bucket_name": Variable.get(DAGVariables.RAW_BUCKET_NAME_VARIABLE),
-        "path": str(Path(os.path.join(PROJECT_ROOT_FOLDER, "./data/country_codes.csv")).resolve()),
-        "replace": True
-    }
-)
+local_copy_tasks = []
+for task_id, local_file_path in LOCAL_FILES_COPY_TASKS:
+    local_copy_tasks.append(PythonOperator(
+        task_id=task_id,
+        provide_context=True,
+        python_callable=copy_files_to_s3,
+        dag=dag,
+        op_kwargs={
+            "connection_id": Connections.S3_CONNECTION_ID,
+            "bucket_name": Variable.get(DAGVariables.RAW_BUCKET_NAME_VARIABLE),
+            "path": str(Path(os.path.join(PROJECT_ROOT_FOLDER, local_file_path)).resolve()),
+            "replace": True
+        }
+    ))
 
-copy_states_data = PythonOperator(
-    task_id='copy_states_data',
-    provide_context=True,
-    python_callable=copy_files_to_s3,
-    dag=dag,
-    op_kwargs={
-        "connection_id": Connections.S3_CONNECTION_ID,
-        "bucket_name": Variable.get(DAGVariables.RAW_BUCKET_NAME_VARIABLE),
-        "path": str(Path(os.path.join(PROJECT_ROOT_FOLDER, "./data/states.csv")).resolve()),
-        "replace": True
-    }
-)
-
-copy_ports_data = PythonOperator(
-    task_id='copy_ports_data',
-    provide_context=True,
-    python_callable=copy_files_to_s3,
-    dag=dag,
-    op_kwargs={
-        "connection_id": Connections.S3_CONNECTION_ID,
-        "bucket_name": Variable.get(DAGVariables.RAW_BUCKET_NAME_VARIABLE),
-        "path": str(Path(os.path.join(PROJECT_ROOT_FOLDER, "./data/ports.csv")).resolve()),
-        "replace": True
-    }
-)
-
-end_operator = DummyOperator(task_id='Stop_execution', dag=dag)
+end_operator = DummyOperator(task_id='stop_execution', dag=dag)
 
 start_operator >> [
-    copy_raw_data,
-    copy_data_description, download_and_copy_gdp_data,
-    copy_country_codes_data, copy_states_data, copy_ports_data
-] >> end_operator
+    copy_immigration_data,
+    download_and_copy_gdp_data
+] + local_copy_tasks >> end_operator
