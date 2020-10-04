@@ -140,7 +140,7 @@ source ./setup_env.sh
 
 1. Add Airflow connections and variables
     ```
-    source ./infra/airflow/init_pipeline.sh
+    source ./infra/airflow/init_airflow.sh
     ```
 
 1. Start Airflow
