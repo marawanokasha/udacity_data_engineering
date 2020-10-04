@@ -1,0 +1,21 @@
+pandas
+matplotlib
+scipy
+numpy
+scikit-learn
+seaborn
+IPython
+jupyter
+boto3
+autovizwidget
+hdijupyterutils
+jupyter-contrib-nbextensions
+jupyter-nbextensions-configurator
+ipywidgets
+nodejs
+
+# for reading from S3
+s3fs
+
+# for reading parquet from pandas
+pyarrow

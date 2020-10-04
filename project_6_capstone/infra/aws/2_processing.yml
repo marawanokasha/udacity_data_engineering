@@ -111,7 +111,6 @@ Resources:
         - Name: Livy
         - Name: Hadoop
         - Name: Hive
-        - Name: Zeppelin
       EbsRootVolumeSize: 10
       VisibleToAllUsers: true
       ReleaseLabel: !Ref emrClusterReleaseVersion
@@ -127,7 +126,8 @@ Resources:
           Name: Master Instance Fleet
           TargetOnDemandCapacity: 1
           InstanceTypeConfigs:
-            - InstanceType: m5.xlarge
+            # use a big driver so we can do the ML training there too
+            - InstanceType: m5.4xlarge
         CoreInstanceFleet:
           Name: Core Instance Fleet
           TargetOnDemandCapacity: 2
