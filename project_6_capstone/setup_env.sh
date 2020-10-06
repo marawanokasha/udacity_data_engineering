@@ -28,14 +28,30 @@ done
 if [[ "$GET_STACK_VARS" -eq 1 ]]; then
     echo "Importing variables from cloudformation..."
     
-    echo "---- Importing Data Stack variables"
-    RAW_DATA_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $DATA_STACK_NAME --output text | grep -oP "OUTPUTS\s+rawBucketName\s+\K(.*)")
-    STAGING_DATA_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $DATA_STACK_NAME --output text | grep -oP "OUTPUTS\s+stagingBucketName\s+\K(.*)")
-    UTIL_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $DATA_STACK_NAME --output text | grep -oP "OUTPUTS\s+utilBucketName\s+\K(.*)")
+    if output=$(aws cloudformation describe-stacks --stack-name $DATA_STACK_NAME); then
+        echo "---- Importing Data Stack variables"
+        RAW_DATA_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $DATA_STACK_NAME --output text | grep -oP "OUTPUTS\s+rawBucketName\s+\K(.*)")
+        STAGING_DATA_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $DATA_STACK_NAME --output text | grep -oP "OUTPUTS\s+stagingBucketName\s+\K(.*)")
+        UTIL_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $DATA_STACK_NAME --output text | grep -oP "OUTPUTS\s+utilBucketName\s+\K(.*)")
+    else
+        echo "---- Data Stack not found, skipping" 
+    fi
 
-    echo "---- Importing Processing Stack variables"
-    EMR_HOST=$(aws cloudformation describe-stacks --stack-name $PROCESSING_STACK_NAME --output text | grep -oP "OUTPUTS\s+emrClusterPublicDNS\s+\K(.*)")
-    EMR_LOGS_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $PROCESSING_STACK_NAME --output text | grep -oP "OUTPUTS\s+emrLogsBucketName\s+\K(.*)")
+    if output=$(aws cloudformation describe-stacks --stack-name $PROCESSING_STACK_NAME); then
+        echo "---- Importing Processing Stack variables"
+        EMR_HOST=$(aws cloudformation describe-stacks --stack-name $PROCESSING_STACK_NAME --output text | grep -oP "OUTPUTS\s+emrClusterPublicDNS\s+\K(.*)")
+        EMR_LOGS_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $PROCESSING_STACK_NAME --output text | grep -oP "OUTPUTS\s+emrLogsBucketName\s+\K(.*)")
+    else
+        echo "---- Processing Stack not found, skipping" 
+    fi
+
+    if output=$(aws cloudformation describe-stacks --stack-name $STORAGE_STACK_NAME); then
+        echo "---- Importing Storage Stack variables"
+        REDSHIFT_HOST=$(aws cloudformation describe-stacks --stack-name $STORAGE_STACK_NAME --output text | grep -oP "OUTPUTS\s+redshiftClusterPublicDNS\s+\K(.*)")
+        REDSHIFT_PORT=$(aws cloudformation describe-stacks --stack-name $STORAGE_STACK_NAME --output text | grep -oP "OUTPUTS\s+redshiftClusterPublicPort\s+\K(.*)")
+    else
+        echo "---- Storage Stack not found, skipping" 
+    fi
     
     echo "Done"
 fi
