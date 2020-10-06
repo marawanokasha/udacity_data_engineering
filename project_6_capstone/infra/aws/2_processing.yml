@@ -1,13 +1,13 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Processing Infrastructure for the udacity capstone project
 Parameters:
-  sshKeyName:
-    Description: SSH Key to Use for Spark Cluster and Redshift
-    Type: AWS::EC2::KeyPair::KeyName
   resourcePrefix:
     Description: Prefix for all resources
     Type: String
     Default: udacity-capstone
+  sshKeyName:
+    Description: SSH Key to Use for the Spark Cluster
+    Type: AWS::EC2::KeyPair::KeyName
   bootstrapActionFilePath:
     Description: S3 bucket path to a file including bootstrap actions for the EMR cluster
     Type: String
@@ -17,25 +17,10 @@ Parameters:
     Default: emr-5.30.1
 
 Resources:
-  redshiftRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      RoleName: !Join 
-        - '-'
-        - - !Ref resourcePrefix
-          - redhshift-cluster-role
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-              - redshift.amazonaws.com
-            Action:
-              - 'sts:AssumeRole'
-  
+
+  ################################################
+  ########## IAM
+
   emrRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -84,6 +69,9 @@ Resources:
         Roles:
           - !Ref emrEc2InstanceRole
 
+  ################################################
+  ########## Buckets
+
   emrLogsBucket:
     Type: 'AWS::S3::Bucket'
     # setting the DeletionPolicy to Retain because we can't delete a non-empty bucket with cloudformation
@@ -94,6 +82,9 @@ Resources:
         - - !Ref resourcePrefix
           - emr-cluster-logs
 
+  ################################################
+  ##########  Spark Cluster
+  
   emrCluster:
     Type: 'AWS::EMR::Cluster'
     # not absolutely needed because the EMR cluster takes so long to initialize, but is the correct way to do things
@@ -143,6 +134,9 @@ Resources:
           - !Ref emrLogsBucket
           - /emr-logs
 
+  ################################################
+  ########## Networking
+
   projectVPC:
     Type: AWS::EC2::VPC
     DeletionPolicy: Delete
@@ -150,6 +144,9 @@ Resources:
       CidrBlock: 10.0.0.0/16
       EnableDnsHostnames: true
       EnableDnsSupport: true
+      Tags:
+      - Key: Name
+        Value: 'Project VPC'
 
   projectVPCInternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -207,6 +204,7 @@ Resources:
           FromPort: 22
           ToPort: 22
           CidrIp: 0.0.0.0/0
+          Description: 'Public SSH access to the spark cluster'  
       SecurityGroupEgress:
         - IpProtocol: "-1"
           CidrIp: 0.0.0.0/0
@@ -320,8 +318,6 @@ Resources:
           StackIdentifier: !Ref AWS::StackId
 
 Outputs:
-  redshiftRoleArn:
-    Value: !GetAtt redshiftRole.Arn
   emrClusterId:
     Value: !Ref emrCluster
   emrClusterPublicDNS:
@@ -330,3 +326,9 @@ Outputs:
     Value: !Ref projectResourceGroup
   emrLogsBucketName:
     Value: !Ref emrLogsBucket
+  projectVPC:
+    Description: 'Project VPC'
+    Value: !Ref projectVPC
+    Export:
+      Name: 'projectVPC'
+      

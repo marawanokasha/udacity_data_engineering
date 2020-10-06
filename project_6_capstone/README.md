@@ -57,15 +57,29 @@ source ./setup_env.sh
         --capabilities CAPABILITY_NAMED_IAM \
         --tags project=udacity-capstone \
         --parameter-overrides \
-        sshKeyName=$AWS_SSH_KEY \
         resourcePrefix=udacity-capstone \
+        sshKeyName=$AWS_SSH_KEY \
         bootstrapActionFilePath=s3://$UTIL_BUCKET_NAME/emr_server_setup.sh
+
+    
+    aws cloudformation deploy \
+        --region $AWS_REGION \
+        --stack-name $STORAGE_STACK_NAME \
+        --template-file ./infra/aws/3_storage.yml \
+        --capabilities CAPABILITY_NAMED_IAM \
+        --tags project=udacity-capstone \
+        --parameter-overrides \
+        resourcePrefix=udacity-capstone \
+        databaseName=$REDSHIFT_DB_NAME \
+        masterUsername=$REDSHIFT_MASTER_USERNAME \
+        masterPassword=$REDSHIFT_MASTER_PASSWORD
 
     ```
 
 1. Delete the Cloudformation stack after you are done
 
     ```
+    aws cloudformation delete-stack --stack-name $STORAGE_STACK_NAME
     aws cloudformation delete-stack --stack-name $PROCESSING_STACK_NAME
     
     # get the name of the emr logs bucket because we have to explicitly delete it since cloudformation can't delete a non-empty bucket
