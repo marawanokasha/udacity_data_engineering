@@ -64,6 +64,12 @@ Resources:
       VpcId: !ImportValue 'projectVPC'
       CidrBlock: 10.0.2.0/24
       MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref resourcePrefix
+              - redshift-subnet
 
   redshiftSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
@@ -83,20 +89,28 @@ Resources:
         - IpProtocol: "-1"
           CidrIp: 0.0.0.0/0
 
+  redshiftClusterSubnetGroup:
+    Type: 'AWS::Redshift::ClusterSubnetGroup'
+    Properties:
+      Description: Redshift Cluster subnet group
+      SubnetIds: 
+        - !Ref redshiftSubnet
+      Tags:
+        - Key: Name
+          Value: "Primary Redshift Cluster Subnet group"
+  
   ################################################
   ########## Redshift Cluster
   
   redshiftCluster:
     Type: 'AWS::Redshift::Cluster'
-    DeletionPolicy: Snapshot
-    UpdateReplacePolicy: Snapshot
     Properties:
-      ClusterType: "single-node" # use "multi-node" for a multi-node cluster
+      ClusterType: "multi-node" # use "multi-node" for a multi-node cluster, "single-node" for single-node
       ClusterIdentifier: !Join 
         - '-'
         - - !Ref resourcePrefix
           - redshift-cluster
-      NumberOfNodes: !Ref "AWS::NoValue" # only needed if ClusterType == "multi-node"
+      NumberOfNodes: 2 # only needed if ClusterType == "multi-node"
       NodeType: "dc2.large"
       DBName: !Ref databaseName
       Port: 5439
@@ -116,16 +130,6 @@ Resources:
             - - !Ref resourcePrefix
               - redshift-cluster
         
-  redshiftClusterSubnetGroup:
-    Type: 'AWS::Redshift::ClusterSubnetGroup'
-    Properties:
-      Description: Redshift Cluster subnet group
-      SubnetIds: 
-        - !Ref redshiftSubnet
-      Tags:
-        - Key: Name
-          Value: "Primary Redshift Cluster Subnet group"
-  
   storageResourceGroup:
     Type: "AWS::ResourceGroups::Group"
     Properties:
@@ -138,6 +142,12 @@ Resources:
         Query:
           StackIdentifier: !Ref AWS::StackId
 
+  ###############################################
+  ######### Amazon Keyspaces Keyspace (Cassandra)
+  cassandraKeyspace:
+    Type: AWS::Cassandra::Keyspace
+    Properties: 
+      KeyspaceName: udacity_capstone
 
 Outputs:
   redshiftRoleArn:
@@ -148,3 +158,5 @@ Outputs:
     Value: !GetAtt redshiftCluster.Endpoint.Address
   redshiftClusterPublicPort:
     Value: !GetAtt redshiftCluster.Endpoint.Port
+  cassandraKeyspaceName:
+    Value: !Ref cassandraKeyspace

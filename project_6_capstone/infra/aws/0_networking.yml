@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Networking Infrastructure for the udacity capstone project
+Resources:
+  ################################################
+  ########## Networking
+
+  projectVPC:
+    Type: AWS::EC2::VPC
+    DeletionPolicy: Delete
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+      - Key: Name
+        Value: 'Project VPC'
+
+  projectVPCInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 'Project VPC Internet Gateway'
+  
+  projectVPCInternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref projectVPC
+      InternetGatewayId: !Ref projectVPCInternetGateway
+
+  # A default route table is created automatically for the VPC by amazon, but it doesn't contain a
+  # route to the internet gateway and is not accessible by cloudformation, so we create another route
+  # table and associate all subnets where we want internet connectivity to it
+  projectVPCRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref projectVPC
+      Tags:
+      - Key: Name
+        Value: 'Project VPC Route Table'
+
+  projectVPCRouteToInternet:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref projectVPCRouteTable
+       DestinationCidrBlock: 0.0.0.0/0
+       GatewayId: !Ref projectVPCInternetGateway
+  
+Outputs:
+  projectVPC:
+    Description: 'Project VPC'
+    Value: !Ref projectVPC
+    Export:
+      Name: 'projectVPC'
+      
+  projectVPCRouteTable:
+    Description: 'Project VPC Route Table'
+    Value: !Ref projectVPCRouteTable
+    Export:
+      Name: 'projectVPCRouteTable'
+      

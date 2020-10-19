@@ -91,7 +91,6 @@ Resources:
     DependsOn: 
       - emrSubnetRouteTableAssociation
       - emrSubnet
-      - projectVPC
     Properties:
       Name: !Join 
         - '-'
@@ -117,8 +116,9 @@ Resources:
           Name: Master Instance Fleet
           TargetOnDemandCapacity: 1
           InstanceTypeConfigs:
+            - InstanceType: m5.xlarge
             # use a big driver so we can do the ML training there too
-            - InstanceType: m5.4xlarge
+            # - InstanceType: m5.8xlarge
         CoreInstanceFleet:
           Name: Core Instance Fleet
           TargetOnDemandCapacity: 2
@@ -137,43 +137,11 @@ Resources:
   ################################################
   ########## Networking
 
-  projectVPC:
-    Type: AWS::EC2::VPC
-    DeletionPolicy: Delete
-    Properties:
-      CidrBlock: 10.0.0.0/16
-      EnableDnsHostnames: true
-      EnableDnsSupport: true
-      Tags:
-      - Key: Name
-        Value: 'Project VPC'
-
-  projectVPCInternetGateway:
-    Type: AWS::EC2::InternetGateway
-  
-  projectVPCInternetGatewayAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref projectVPC
-      InternetGatewayId: !Ref projectVPCInternetGateway
-
-  projectVPCRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref projectVPC
-
-  projectVPCRouteToInternet:
-    Type: AWS::EC2::Route
-    Properties:
-       RouteTableId: !Ref projectVPCRouteTable
-       DestinationCidrBlock: 0.0.0.0/0
-       GatewayId: !Ref projectVPCInternetGateway
-  
   emrSubnetRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref emrSubnet
-      RouteTableId: !Ref projectVPCRouteTable
+      RouteTableId: !ImportValue 'projectVPCRouteTable'
 
   emrSubnet:
     Type: AWS::EC2::Subnet
@@ -183,9 +151,15 @@ Resources:
       AvailabilityZone: !Select 
         - 0
         - Fn::GetAZs: !Ref 'AWS::Region'
-      VpcId: !Ref projectVPC
+      VpcId: !ImportValue 'projectVPC'
       CidrBlock: 10.0.1.0/24
       MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref resourcePrefix
+              - emr-subnet
 
   emrMasterSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -198,7 +172,7 @@ Resources:
         - ' '
         - - !Ref resourcePrefix
           - Security Group for the master nodes of the EMR Cluster 
-      VpcId: !Ref projectVPC
+      VpcId: !ImportValue 'projectVPC'
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
@@ -220,7 +194,7 @@ Resources:
         - ' '
         - - !Ref resourcePrefix
           - Security Group for slave nodes of the EMR Cluster
-      VpcId: !Ref projectVPC
+      VpcId: !ImportValue 'projectVPC'
       SecurityGroupEgress:
         - IpProtocol: "-1"
           CidrIp: 0.0.0.0/0
@@ -241,7 +215,7 @@ Resources:
       IpProtocol: tcp
       FromPort: 0
       ToPort: 65535
-      SourceSecurityGroupId: !Ref emrMasterSecurityGroup
+      SourceSecurityGroupId: !Ref emrSlaveSecurityGroup
   
   emrMasterSecurityGroupIngressAllowAllTCP:
     Type: AWS::EC2::SecurityGroupIngress
@@ -326,9 +300,3 @@ Outputs:
     Value: !Ref projectResourceGroup
   emrLogsBucketName:
     Value: !Ref emrLogsBucket
-  projectVPC:
-    Description: 'Project VPC'
-    Value: !Ref projectVPC
-    Export:
-      Name: 'projectVPC'
-      
