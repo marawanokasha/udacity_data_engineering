@@ -36,6 +36,14 @@ source ./setup_env.sh
 
     source ./setup_env.sh --no-cf
 
+    # networking infrastructure
+    aws cloudformation deploy \
+        --region $AWS_REGION \
+        --stack-name $NETWORKING_STACK_NAME \
+        --template-file ./infra/aws/0_networking.yml \
+        --tags project=udacity-capstone
+
+    # data infrastructure
     aws cloudformation deploy \
         --region $AWS_REGION \
         --stack-name $DATA_STACK_NAME \
@@ -73,6 +81,17 @@ source ./setup_env.sh
         databaseName=$REDSHIFT_DB_NAME \
         masterUsername=$REDSHIFT_MASTER_USERNAME \
         masterPassword=$REDSHIFT_MASTER_PASSWORD
+
+    
+    # cassandra infrastructure
+    # agree to the terms in https://aws.amazon.com/marketplace/pp/prodview-7l2i3ngqrah46 to get access to the cassandra IAM
+    aws cloudformation deploy \
+        --region $AWS_REGION \
+        --stack-name $CASSANDRA_STACK_NAME \
+        --template-file ./infra/aws/4_cassandra.yml \
+        --tags project=udacity-capstone \
+        --parameter-overrides \
+        sshKeyName=$AWS_SSH_KEY
 
     ```
 

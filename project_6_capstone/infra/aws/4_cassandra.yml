@@ -1,0 +1,301 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Cassandra Infrastructure for the udacity capstone project
+Parameters:
+  resourcePrefix:
+    Description: Prefix for all resources
+    Type: String
+    Default: udacity-capstone
+  sshKeyName:
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: SSH Key to Use for the Cassandra Cluster
+  ossVersion:
+    AllowedValues:
+      - 3.11.5
+    Default: 3.11.5
+    ConstraintDescription: Apache Cassandra version to install.
+    Type: String
+  clusterName:
+    Description: Name of the Cassandra Cluster.
+    Type: String
+    Default: cassandra-cluster
+  datacenterName:
+    Description: Name of the Cassandra Datacenter.
+    Type: String
+    Default: cassandra-datacenter
+Mappings:
+  AWSAMIRegionMapNode:
+    ap-northeast-1:
+      1804HVM: ami-01cf3c9f7fd67736a
+    ap-northeast-2:
+      1804HVM: ami-02cf61f93cc436736
+    ap-south-1:
+      1804HVM: ami-071a9070733391704
+    ap-southeast-1:
+      1804HVM: ami-0b8fc90172445d87f
+    ap-southeast-2:
+      1804HVM: ami-0b26393929ecb434a
+    ca-central-1:
+      1804HVM: ami-0d00ce98bc786f354
+    eu-central-1:
+      1804HVM: ami-0a18262f9add781e7
+    eu-west-1:
+      1804HVM: ami-02ab7be3e3eab53aa
+    eu-west-2:
+      1804HVM: ami-010a35b39a7152937
+    eu-west-3:
+      1804HVM: ami-0995b6608c0f7c667
+    sa-east-1:
+      1804HVM: ami-08800738163f6b569
+    us-east-1:
+      1804HVM: ami-05793f970ce692d34
+    us-east-2:
+      1804HVM: ami-0e9b96ba1990aa68c
+    us-west-1:
+      1804HVM: ami-0ba36c5c9f1dbf8d0
+    us-west-2:
+      1804HVM: ami-04cf3820e2fc901a6
+Resources:
+
+  ################################################
+  ########## Networking
+
+  cassandraSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select 
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      VpcId: !ImportValue 'projectVPC'
+      CidrBlock: 10.0.3.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref resourcePrefix
+              - cassandra-subnet
+
+  cassandraSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref cassandraSubnet
+      RouteTableId: !ImportValue 'projectVPCRouteTable'
+
+  cassandraSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: !Join 
+        - ''
+        - - !Ref resourcePrefix
+          - -cassandra-security-group
+      VpcId: !ImportValue 'projectVPC'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 9042
+          ToPort: 9042
+          CidrIp: 0.0.0.0/0
+          Description: 'Public access to the cassandra cluster'
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          Description: 'SSH Access'
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref resourcePrefix
+              - cassandra-security-group
+
+  ################################################
+  ########## EC2 Instance
+  
+  cassandraNode:
+    Type: 'AWS::EC2::Instance'
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    Metadata:
+      'AWS::CloudFormation::Init':
+        configSets:
+          cs_install:
+            - install_and_enable_cfn_hup
+            - install_cassandra
+            - post_install
+        install_and_enable_cfn_hup:
+          files:
+            /etc/cfn/cfn-hup.conf:
+              content: !<!Join> 
+                - ''
+                - - |
+                    [main]
+                  - stack=
+                  - !<!Ref> 'AWS::StackId'
+                  - |+
+
+                  - region=
+                  - !<!Ref> 'AWS::Region'
+                  - |+
+
+              mode: '000400'
+              owner: root
+              group: root
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !<!Join> 
+                - ''
+                - - |
+                    [cfn-auto-reloader-hook]
+                  - |
+                    triggers=post.update
+                  - >
+                    path=Resources.CassandraNode.Metadata.AWS::CloudFormation::Init
+                  - 'action=/usr/local/bin/cfn-init -v '
+                  - '         --stack '
+                  - !<!Ref> 'AWS::StackName'
+                  - '         --resource cassandraNode '
+                  - '         --configsets cs_install '
+                  - '         --region '
+                  - !<!Ref> 'AWS::Region'
+                  - |+
+
+                  - |
+                    runas=root
+            /lib/systemd/system/cfn-hup.service:
+              content: !<!Join> 
+                - ''
+                - - |
+                    [Unit]
+                  - |+
+                    Description=cfn-hup daemon
+
+                  - |
+                    [Service]
+                  - |
+                    Type=simple
+                  - |
+                    ExecStart=/usr/local/bin/cfn-hup
+                  - |
+                    Restart=always
+                  - |
+                    [Install]
+                  - WantedBy=multi-user.target
+          commands:
+            01enable_cfn_hup:
+              command: systemctl enable cfn-hup.service
+            02start_cfn_hup:
+              command: systemctl start cfn-hup.service
+        install_cassandra:
+          commands:
+            01_link_directory:
+              command: ln -s /home/ubuntu /home/cassandra
+            02_keygen:
+              command: /home/cassandra/keygen.sh
+            03_run_playbooks:
+              command: /home/cassandra/playbooks.sh
+            04_install_cassandra:
+              command: !<!Sub> >
+                #!/bin/bash -xe
+
+                PrivateIp=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4/)
+
+                PublicIp=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4/)
+
+                echo $PublicIp
+                echo $PrivateIp
+
+                echo "----Before---------"
+
+                ansible-playbook -v -u ubuntu -i /home/cassandra/ansible-hosts.cfg \
+                  --private-key /home/ubuntu/.ssh/id_rsa /home/cassandra/cassandra-install.yml \
+                  --extra-vars "cassandra_version=${ossVersion} cluster_name=${resourcePrefix}-${clusterName} dc=${resourcePrefix}-${datacenterName} seeds=$PrivateIp publicip=$PublicIp"
+
+                echo "----After---------"
+
+                echo $PrivateIp
+
+        post_install:
+          commands:
+            01_post_install_cassandra:
+              command: touch /tmp/01_post_install_cassandra
+    Properties:
+      InstanceType: t2.medium
+      NetworkInterfaces:
+        - DeleteOnTermination: true
+          DeviceIndex: '0'
+          SubnetId: !Ref cassandraSubnet
+          GroupSet: 
+            - !GetAtt cassandraSecurityGroup.GroupId
+      KeyName: !<!Ref> sshKeyName
+      ImageId: !<!FindInMap> 
+        - AWSAMIRegionMapNode
+        - !<!Ref> 'AWS::Region'
+        - 1804HVM
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvdf
+          Ebs:
+            VolumeSize: 64
+            VolumeType: gp2
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref resourcePrefix
+              - cassandra-node
+      UserData: !<!Base64> 
+        'Fn::Sub': >
+          #!/bin/bash -xe
+
+          #CFN Signaling fuctions (begin)
+
+          function cfn_fail
+
+          {
+            cfn-signal -e 1 --stack ${AWS::StackName} --region ${AWS::Region} --resource cassandraNode
+            exit 1
+          }
+
+          function cfn_success
+
+          {
+            cfn-signal -e 0 --stack ${AWS::StackName} --region ${AWS::Region} --resource cassandraNode
+            exit 0
+          }
+
+          #Load Linux utils
+
+          until git clone
+          https://github.com/aws-quickstart/quickstart-linux-utilities.git ; do
+          echo "Retrying"; done
+
+          cd /quickstart-linux-utilities && source quickstart-cfn-tools.source
+
+          # Constants
+
+          # Prep operating systems
+
+          qs_update-os || qs_err
+
+          qs_bootstrap_pip || qs_err
+
+          qs_aws-cfn-bootstrap || qs_err
+
+          #Run cfn-init configsets
+
+          cfn-init -v --stack ${AWS::StackName} --resource cassandraNode --configsets cs_install --region ${AWS::Region} || qs_err
+
+          # Signal cfn-init (final check)
+
+          [ $(qs_status) == 0 ] && cfn_success || cfn_fail
+Outputs:
+  cassandraPrivateIpAddress:
+    Value: !<!GetAtt> cassandraNode.PrivateIp
+    Description: Cassandra Node Private IP
+  cassandraPublicIpAddress:
+    Value: !<!GetAtt> cassandraNode.PublicIp
+    Description: Cassandra Node Public IP
+  cassandraPublicDNS:
+    Value: !<!GetAtt> cassandraNode.PublicDnsName
+    Description: Cassandra Node Public DNS Name

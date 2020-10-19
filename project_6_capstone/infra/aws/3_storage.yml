@@ -142,13 +142,6 @@ Resources:
         Query:
           StackIdentifier: !Ref AWS::StackId
 
-  ###############################################
-  ######### Amazon Keyspaces Keyspace (Cassandra)
-  cassandraKeyspace:
-    Type: AWS::Cassandra::Keyspace
-    Properties: 
-      KeyspaceName: udacity_capstone
-
 Outputs:
   redshiftRoleArn:
     Value: !GetAtt redshiftRole.Arn

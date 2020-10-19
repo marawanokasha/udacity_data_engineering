@@ -19,3 +19,6 @@ s3fs
 
 # for reading parquet from pandas
 pyarrow
+
+# for creating the cassandra keyspace and tables
+cassandra-driver
