@@ -1,0 +1,35 @@
+a {
+    cursor: pointer;
+}
+
+#info-icon {
+    position: absolute;
+    right: 15px;
+    top: 0px;
+    cursor: pointer;
+    font-size: 50px;
+    color:#00aa00;
+    margin-top: 5px;
+}
+
+
+/*
+Recommendation Panel
+*/
+
+.main-container {
+    width: 100%;
+    margin-bottom: 30px;
+}
+
+.map-container #map-canvas {
+    height: 650px;
+}
+
+.overstay-container {
+    margin-top: 10px
+}
+
+.overstay-container h3 {
+    padding-bottom: 1em;
+}
