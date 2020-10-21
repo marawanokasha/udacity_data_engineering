@@ -58,6 +58,7 @@ source ./setup_env.sh
     # copy the EMR server initialization script to a bucket where EMR can download it during bootstrapping
     aws s3 cp ./infra/spark/emr_server_setup.sh s3://$UTIL_BUCKET_NAME/
 
+    # EMR infrastructure
     aws cloudformation deploy \
         --region $AWS_REGION \
         --stack-name $PROCESSING_STACK_NAME \
@@ -69,7 +70,7 @@ source ./setup_env.sh
         sshKeyName=$AWS_SSH_KEY \
         bootstrapActionFilePath=s3://$UTIL_BUCKET_NAME/emr_server_setup.sh
 
-    
+    # redshift infrastructure
     aws cloudformation deploy \
         --region $AWS_REGION \
         --stack-name $STORAGE_STACK_NAME \
@@ -95,17 +96,16 @@ source ./setup_env.sh
 
     ```
 
-1. Delete the Cloudformation stack after you are done
+1. Delete the Cloudformation stacks after you are done
 
     ```
+    aws cloudformation delete-stack --stack-name $CASSANDRA_STACK_NAME
     aws cloudformation delete-stack --stack-name $STORAGE_STACK_NAME
     aws cloudformation delete-stack --stack-name $PROCESSING_STACK_NAME
-    
-    # get the name of the emr logs bucket because we have to explicitly delete it since cloudformation can't delete a non-empty bucket
-    EMR_LOGS_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $PROCESSING_STACK_NAME --output text | grep -oP "OUTPUTS\s+emrLogsBucketName\s+\K(.*)")
-    
     aws cloudformation delete-stack --stack-name $DATA_STACK_NAME
-    # remove the bucket forcibly
+    aws cloudformation delete-stack --stack-name $NETWORKING_STACK_NAME
+
+    # remove the bucket forcibly since cloudformation can't delete a non-empty bucket
     aws s3 rb --force s3://$EMR_LOGS_BUCKET_NAME
     ```
 
@@ -194,9 +194,22 @@ source ./setup_env.sh
     cat $AIRFLOW_HOME/airflow-webserver.pid | xargs kill & rm $AIRFLOW_HOME/airflow-webserver.pid $AIRFLOW_HOME/airflow-webserver-monitor.pid
     ```
 
-Data checks:
-- Date added to the files can't be > date arrived
+## Web application
 
+The companion web application uses the data stored in Cassandra to display a map showing the number of arrivals per country. It also uses the ML model that was trained by Spark to make predictions on whether a specific passenger will overstay his visa.
 
-Scope:
-- Web application for displaying people arriving to the US on a monthly basis
+### Installation
+
+```
+cd web
+pip install -r requirements.txt
+```
+
+### Running 
+
+```
+cd map_app
+python app.py
+```
+
+![alt text](web/web_app.png "Immigration Map App")

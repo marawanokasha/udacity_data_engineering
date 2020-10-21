@@ -6,13 +6,17 @@
     <meta http-equiv="content-type" content="text/html; charset=UTF-8">
     <meta charset="utf-8">
     <title>U.S. Immigration Map</title>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" 
-          integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+        integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
     <link rel="stylesheet" type="text/css" href="/static/style.css">
-    
+
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
+        integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
+        crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+        integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+        crossorigin="anonymous"></script>
 
     <script type=text/javascript src="/static/main.js"></script>
 
@@ -32,8 +36,9 @@
                     <div class="form-group row">
                         <label class="col-md-4 control-label">Citizenship country</label>
                         <div class="col-md-6">
-                            <select class="form-control" ng-model="currentCategoryId" ng-change="updateCategory(currentCategoryId)"
-                                ng-options="category.category_id as category.category_name for category in allCategories">
+                            <select class="form-control" name="country_citizenship">
+                                <option value="RUS">Russia</option>
+                                <option value="ROU">Romania</option>
                             </select>
                         </div>
                     </div>
@@ -41,8 +46,9 @@
                     <div class="form-group row">
                         <label class="col-md-4 control-label">Residence country:</label>
                         <div class="col-md-6">
-                            <select class="form-control" ng-model="currentCategoryId" ng-change="updateCategory(currentCategoryId)"
-                                ng-options="category.category_id as category.category_name for category in allCategories">
+                            <select class="form-control" name="country_residence" required>
+                                <option value="RUS">Russia</option>
+                                <option value="ROU">Romania</option>
                             </select>
                         </div>
                     </div>
@@ -50,7 +56,7 @@
                     <div class="form-group row">
                         <label class="col-md-4 control-label">Destinatation State:</label>
                         <div class="col-md-6">
-                            <select class="form-control" name="destination_state">
+                            <select class="form-control" name="destination_state" required>
                                 <option value="AL">Alabama</option>
                                 <option value="AK">Arkansas</option>
                             </select>
@@ -60,14 +66,14 @@
                     <div class="form-group row">
                         <label class="col-md-4 control-label">Age:</label>
                         <div class="col-md-6">
-                            <input type="number" class="form-control"/>
+                            <input type="number" class="form-control" name="age" value="30" required />
                         </div>
                     </div>
 
                     <div class="form-group row">
                         <label class="col-md-4 control-label">Gender:</label>
                         <div class="col-md-6">
-                            <select class="form-control" name="gender">
+                            <select class="form-control" name="gender" required>
                                 <option value="M">Male</option>
                                 <option value="F">Female</option>
                             </select>
@@ -77,40 +83,43 @@
                     <div class="form-group row">
                         <label class="col-md-4 control-label">Arrival Date:</label>
                         <div class="col-md-6">
-                            <input type="date" class="form-control"/>
+                            <input type="date" class="form-control" name="arrival_date" required />
                         </div>
                     </div>
-                    
+
                     <div class="form-group row">
                         <label class="col-md-4 control-label">Number of Previous stays:</label>
                         <div class="col-md-6">
-                            <input type="number" class="form-control"/>
+                            <input type="number" class="form-control" name="num_previous_stays" value="0" />
                         </div>
                     </div>
-                    
+
                     <div class="form-group row">
                         <label class="col-md-4 control-label">Visa Type:</label>
                         <div class="col-md-6">
-                            <select class="form-control" name="visa_type">
+                            <select class="form-control" name="visa_type" required>
                                 <option value="F1">F1</option>
                                 <option value="F2">F2</option>
                             </select>
                         </div>
                     </div>
-                    
+
                     <div class="form-group row">
                         <div class="col-md-4"></div>
                         <div class="col-md-6">
                             <button class="btn btn-primary btn-block">Submit</button>
                         </div>
                     </div>
-                    
+
                 </form>
-                <div class="prediction-result"></div>
+                <div id="prediction-result" class="prediction-result">
+                    <span class="prediction-result-label">Probability of an overstay:</span>
+                    <span class="prediction-result-value"></span>
+                </div>
             </div>
         </div>
     </div>
-        
+
     <script src="https://cdn.amcharts.com/lib/4/core.js"></script>
     <script src="https://cdn.amcharts.com/lib/4/maps.js"></script>
     <script src="https://cdn.amcharts.com/lib/4/geodata/usaLow.js"></script>
@@ -118,101 +127,125 @@
     <script src="https://cdn.amcharts.com/lib/4/themes/animated.js"></script>
 
     <script type="text/javascript">
-    
-    function showMap(arrivals_data){
-        am4core.ready(function() {
-                
-            // Themes begin
-            am4core.useTheme(am4themes_animated);
-            // Themes end
 
-            // Create map instance
-            var chart = am4core.create("map-canvas", am4maps.MapChart);
-            // Set projection
-            chart.projection = new am4maps.projections.Miller();
+        function showMap(arrivals_data) {
+            am4core.ready(function () {
 
-            // Set map definition
-            chart.geodata = am4geodata_worldLow;
+                // Themes begin
+                am4core.useTheme(am4themes_animated);
+                // Themes end
 
-            // Create map polygon series
-            var polygonSeries = chart.series.push(new am4maps.MapPolygonSeries());
+                // Create map instance
+                var chart = am4core.create("map-canvas", am4maps.MapChart);
+                // Set projection
+                chart.projection = new am4maps.projections.Miller();
 
-            //Set min/max fill color for each area
-            polygonSeries.heatRules.push({
-                property: "fill",
-                target: polygonSeries.mapPolygons.template,
-                min: chart.colors.getIndex(1).brighten(1),
-                max: chart.colors.getIndex(1).brighten(-0.3)
+                // Set map definition
+                chart.geodata = am4geodata_worldLow;
+
+                // Create map polygon series
+                var polygonSeries = chart.series.push(new am4maps.MapPolygonSeries());
+
+                //Set min/max fill color for each area
+                polygonSeries.heatRules.push({
+                    property: "fill",
+                    target: polygonSeries.mapPolygons.template,
+                    min: chart.colors.getIndex(1).brighten(1),
+                    max: chart.colors.getIndex(1).brighten(-0.3)
+                });
+
+                // Make map load polygon data (state shapes and names) from GeoJSON
+                polygonSeries.useGeodata = true;
+                polygonSeries.exclude = ["AQ"];
+
+                // Set heatmap values for each state
+                polygonSeries.data = arrivals_data;
+
+                // Set up heat legend
+                let heatLegend = chart.createChild(am4maps.HeatLegend);
+                heatLegend.series = polygonSeries;
+                heatLegend.align = "right";
+                heatLegend.valign = "bottom";
+                heatLegend.width = am4core.percent(20);
+                heatLegend.marginRight = am4core.percent(4);
+                heatLegend.minValue = 0;
+                heatLegend.maxValue = 40000000;
+
+                // Set up custom heat map legend labels using axis ranges
+                var minRange = heatLegend.valueAxis.axisRanges.create();
+                minRange.value = heatLegend.minValue;
+                minRange.label.text = "Less";
+                var maxRange = heatLegend.valueAxis.axisRanges.create();
+                maxRange.value = heatLegend.maxValue;
+                maxRange.label.text = "More";
+
+                // Blank out internal heat legend value axis labels
+                heatLegend.valueAxis.renderer.labels.template.adapter.add("text", function (labelText) {
+                    return "";
+                });
+
+                // Configure series tooltip
+                var polygonTemplate = polygonSeries.mapPolygons.template;
+                polygonTemplate.tooltipText = "{name}: {value}";
+                polygonTemplate.nonScalingStroke = true;
+                polygonTemplate.strokeWidth = 0.5;
+
+                // Create hover state and set alternative fill color
+                var hs = polygonTemplate.states.create("hover");
+                hs.properties.fill = am4core.color("#3c5bdc");
+
+
+                // Texts
+                var labelsContainer = chart.createChild(am4core.Container);
+                labelsContainer.isMeasured = false;
+                labelsContainer.x = 80;
+                labelsContainer.y = 27;
+                labelsContainer.layout = "horizontal";
+                labelsContainer.zIndex = 10;
+
+                var title = labelsContainer.createChild(am4core.Label);
+                title.text = "Number of arrivals per citizenship country";
+                title.fill = am4core.color("#000000");
+                title.fontSize = 20;
+                title.valign = "middle";
+                title.dy = 2;
+                title.marginLeft = 15;
+
+
+            }); // end am4core.ready()
+        }
+
+        $(function () {
+
+            $.getJSON("/map_data", function (data) {
+                showMap(data);
             });
 
-            // Make map load polygon data (state shapes and names) from GeoJSON
-            polygonSeries.useGeodata = true;
-            polygonSeries.exclude = ["AQ"];
-
-            // Set heatmap values for each state
-            polygonSeries.data = arrivals_data;
-
-            // Set up heat legend
-            let heatLegend = chart.createChild(am4maps.HeatLegend);
-            heatLegend.series = polygonSeries;
-            heatLegend.align = "right";
-            heatLegend.valign = "bottom";
-            heatLegend.width = am4core.percent(20);
-            heatLegend.marginRight = am4core.percent(4);
-            heatLegend.minValue = 0;
-            heatLegend.maxValue = 40000000;
-
-            // Set up custom heat map legend labels using axis ranges
-            var minRange = heatLegend.valueAxis.axisRanges.create();
-            minRange.value = heatLegend.minValue;
-            minRange.label.text = "Less";
-            var maxRange = heatLegend.valueAxis.axisRanges.create();
-            maxRange.value = heatLegend.maxValue;
-            maxRange.label.text = "More";
-
-            // Blank out internal heat legend value axis labels
-            heatLegend.valueAxis.renderer.labels.template.adapter.add("text", function(labelText) {
-            return "";
-            });
-
-            // Configure series tooltip
-            var polygonTemplate = polygonSeries.mapPolygons.template;
-            polygonTemplate.tooltipText = "{name}: {value}";
-            polygonTemplate.nonScalingStroke = true;
-            polygonTemplate.strokeWidth = 0.5;
-
-            // Create hover state and set alternative fill color
-            var hs = polygonTemplate.states.create("hover");
-            hs.properties.fill = am4core.color("#3c5bdc");
+            $("form").submit(function (e) {
+                e.preventDefault();
+                var data = {};
+                $.each($(this).serializeArray(), function (i, field) {
+                    data[field.name] = field.value;
+                });
+                console.log(data);
 
                 
-            // Texts
-            var labelsContainer = chart.createChild(am4core.Container);
-            labelsContainer.isMeasured = false;
-            labelsContainer.x = 80;
-            labelsContainer.y = 27;
-            labelsContainer.layout = "horizontal";
-            labelsContainer.zIndex = 10;
-
-            var title = labelsContainer.createChild(am4core.Label);
-            title.text = "Number of arrivals per citizenship country";
-            title.fill = am4core.color("#000000");
-            title.fontSize = 20;
-            title.valign = "middle";
-            title.dy = 2;
-            title.marginLeft = 15;
-
-
-        }); // end am4core.ready()
-    }
-
-    $(function() {
-            
-        $.getJSON("/map_data", function(data){
-            console.log("success");
-            showMap(data);
+                $.ajax({
+                    type: "POST",
+                    url: "/predict_overstay",
+                    data: JSON.stringify(data),
+                    contentType: "application/json",
+                    dataType: "json",
+                    success: function (response) {
+                        console.log(response);
+                        var probability = response['probability']
+                        var probability_formatted =  probability.toLocaleString(undefined,{style: 'percent', minimumFractionDigits:2})
+                        $("#prediction-result").show();
+                        $(".prediction-result-value").html(probability_formatted);
+                    }
+                });
+            })
         });
-    });
     </script>
 
 </body>
