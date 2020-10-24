@@ -1,0 +1,1 @@
+USE {{params.project_keyspace}};

@@ -24,6 +24,7 @@ airflow initdb
 echo "============= Setting the configuration options"
 # set the correct dag directory
 sed -i "s|dags_folder = .*|dags_folder = $DAG_FOLDER|" $AIRFLOW_CF_FILE
+sed -i "s|plugins_folder = .*|plugins_folder = $DAG_FOLDER/plugins|" $AIRFLOW_CF_FILE
 # set the correct port for the webserver
 sed -i "s|web_server_port = 8080|web_server_port = 3000|" $AIRFLOW_CF_FILE
 

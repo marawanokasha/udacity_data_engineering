@@ -49,7 +49,7 @@ processing_task = EmrAddStepsOperator(
 )
 
 task_checker = EmrStepSensor(
-    task_id='watch_step',
+    task_id='wait_for_emr_processing',
     job_flow_id="{{ task_instance.xcom_pull('%s', key='job_flow_id') }}" % SPARK_TASK_ID,
     step_id="{{ task_instance.xcom_pull(task_ids='%s', key='return_value')[0] }}" % SPARK_TASK_ID,
     aws_conn_id=Connections.AWS_CONNECTION_ID,
