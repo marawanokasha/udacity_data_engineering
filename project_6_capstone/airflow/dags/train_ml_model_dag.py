@@ -6,7 +6,6 @@ import datetime
 from pathlib import Path
 
 from airflow.models import DAG, Variable
-from airflow.operators.python_operator import PythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 
 from airflow.contrib.operators.emr_add_steps_operator import EmrAddStepsOperator
@@ -57,7 +56,7 @@ dag = DAG(
 
 processing_task = EmrAddStepsOperator(
     task_id=SPARK_TASK_ID,
-    job_flow_name=Variable.get(DAGVariables.EMR_CLUSTER_NAME_VARIABLE),
+    job_flow_id=Variable.get(DAGVariables.EMR_CLUSTER_ID_VARIABLE),
     aws_conn_id=Connections.AWS_CONNECTION_ID,
     steps=SPARK_STEPS,
     cluster_states=["WAITING"],

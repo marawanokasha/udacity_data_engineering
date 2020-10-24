@@ -6,15 +6,15 @@ import argparse
 import logging
 import os
 
-from pyspark.sql import SparkSession
-
 from ml_data_processing import create_ml_data
 from processing import (clean_immigration_data,
-                        create_staging_immigration_data, read_dimension_data,
-                        read_sas_data)
+                        create_staging_immigration_data, create_visa_type_data,
+                        read_dimension_data, read_sas_data)
+from pyspark.sql import SparkSession
 
 VALID_COLUMNS = [
-    'cicid', 'i94yr', 'i94mon', 'i94cit', 'i94res', 'i94port', 'arrdate', 'i94mode', 'i94addr', 'depdate',
+    'cicid', 'i94yr', 'i94mon', 'i94cit', 'i94res', 'i94port', 'arrdate',
+    'i94mode', 'i94addr', 'depdate',
     'i94bir', 'i94visa', 'count', 'dtadfile',
     'visapost', 'occup', 'entdepa', 'entdepd', 'entdepu', 'matflag', 'biryear',
     'dtaddto', 'gender', 'insnum', 'airline', 'admnum', 'fltno', 'visatype'
@@ -22,7 +22,7 @@ VALID_COLUMNS = [
 
 
 FINAL_COLUMNS = [
-    "year", "month", "day",
+    "admnum", "year", "month", "day",
     "arrival_date", "departure_date", "permitted_date", "unrestricted_stay",
     "country_citizenship", "country_residence", "port_name",
     "destination_state",
@@ -57,9 +57,10 @@ def main(immigration_data_path: str, dimension_root_path: str, output_path: str)
     raw_data = read_sas_data(spark, immigration_data_path, columns_to_read=VALID_COLUMNS)
 
     clean_df = clean_immigration_data(raw_data)
-    country_df, country_iso_df, gdp_df, states_df, port_df  = read_dimension_data(spark, dimension_root_path)
-    joined_df = create_staging_immigration_data(clean_df, country_df, country_iso_df, states_df, port_df, final_columns=FINAL_COLUMNS)
+    country_ids_df, country_iso_df, gdp_df, states_df, port_df = read_dimension_data(spark, dimension_root_path)
+    joined_df = create_staging_immigration_data(clean_df, country_ids_df, country_iso_df, states_df, port_df, final_columns=FINAL_COLUMNS)
     ml_data_df = create_ml_data(joined_df, gdp_df)
+    visa_type_df = create_visa_type_data(joined_df)
 
     joined_df = joined_df.repartition(20)
 
@@ -72,12 +73,40 @@ def main(immigration_data_path: str, dimension_root_path: str, output_path: str)
         .parquet(os.path.join(output_path, "immigration_data"))
     )
 
+    logger.info(f"Writing the Country data to {output_path}")
+    (
+        country_iso_df
+        .coalesce(1)
+        .write
+        .mode("overwrite")
+        .parquet(os.path.join(output_path, "country_data"))
+    )
+
+    logger.info(f"Writing the State data to {output_path}")
+    (
+        states_df
+        .coalesce(1)
+        .write
+        .mode("overwrite")
+        .parquet(os.path.join(output_path, "state_data"))
+    )
+
     logger.info(f"Writing the GDP data to {output_path}")
     (
         gdp_df
+        .coalesce(1)
         .write
         .mode("overwrite")
         .parquet(os.path.join(output_path, "gdp_data"))
+    )
+
+    logger.info(f"Writing the Visa type data to {output_path}")
+    (
+        visa_type_df
+        .coalesce(1)
+        .write
+        .mode("overwrite")
+        .parquet(os.path.join(output_path, "visa_type_data"))
     )
 
     logger.info(f"Writing the ML data to {output_path}")

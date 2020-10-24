@@ -21,7 +21,6 @@ LOCAL_FILES_COPY_TASKS = [
 
 PROJECT_ROOT_FOLDER = Path(__file__).parent.parent.parent.absolute()
 
-
 args = {
     'owner': 'Airflow',
     'start_date': datetime.datetime.now()
@@ -78,7 +77,7 @@ for task_id, local_file_path in LOCAL_FILES_COPY_TASKS:
         }
     ))
 
-end_operator = DummyOperator(task_id='stop_execution', dag=dag)
+end_operator = DummyOperator(task_id='Stop_execution', dag=dag)
 
 start_operator >> [
     copy_immigration_data,

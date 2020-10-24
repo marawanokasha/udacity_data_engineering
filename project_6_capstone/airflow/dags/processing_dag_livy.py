@@ -7,7 +7,6 @@ import datetime
 import sys
 
 from airflow.models import DAG, Variable
-from airflow.operators.python_operator import PythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.providers.apache.livy.operators.livy import LivyOperator
 from capstone.constants import DAGVariables, Connections

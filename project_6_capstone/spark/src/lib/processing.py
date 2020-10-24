@@ -81,10 +81,10 @@ def read_dimension_data(spark: SparkSession, root_path: str):
     country_iso_df_cleaned = (
         country_iso_df
         .withColumnRenamed("name", "country_name")
-        .withColumnRenamed("alpha-2", "iso_code_2")
-        .withColumnRenamed("alpha-3", "iso_code_3")
+        .withColumnRenamed("alpha-2", "country_code_iso_2")
+        .withColumnRenamed("alpha-3", "country_code")
         .withColumnRenamed("region", "continent")
-        .select("country_name", "iso_code_2", "iso_code_3", "continent")
+        .select("country_code", "country_name", "country_code_iso_2", "continent")
     )
     gdp_df_cleaned = (
         gdp_df
@@ -97,6 +97,15 @@ def read_dimension_data(spark: SparkSession, root_path: str):
         .withColumn("country_name_lower", F.lower(F.col("country_name")))
     )
 
+    # get only the latest GDP figures
+    year_window = Window.partitionBy("country_code").orderBy(F.desc("Year"))
+    gdp_df_cleaned = (
+        gdp_df_cleaned
+        .withColumn("row", F.row_number().over(year_window))
+        .where(F.col("row") == 1)
+        .drop("row")
+    )
+
     return country_ids_df_cleaned, country_iso_df_cleaned, gdp_df_cleaned, states_df, ports_df
 
 
@@ -106,7 +115,7 @@ def clean_immigration_data(raw_data):
     and adding some derived features
     """
 
-    logger.warning("Cleaning the immigration data")
+    logger.info("Cleaning the immigration data")
 
     USEFUL_COLUMNS = [
         "admnum", "i94yr", "i94mon",
@@ -148,7 +157,7 @@ def clean_immigration_data(raw_data):
     clean_df = (
         clean_df
         .withColumn('admnum', F.col("admnum").cast(LongType()))
-         # when admnum = 0, set it to null, so we don't take it into account in the num_previous_stays window
+        # when admnum = 0, set it to null, so we don't take it into account in the num_previous_stays window
         .withColumn('admnum', F.when(F.col('admnum') == 0, F.lit(None)).otherwise(F.col('admnum')))
         .withColumn('year', F.col("year").cast(IntegerType()))
         .withColumn('month', F.col("month").cast(IntegerType()))
@@ -167,6 +176,12 @@ def clean_immigration_data(raw_data):
         .withColumn('num_previous_stays', F.count("admnum").over(same_user_window))
     )
 
+    # reset the null admnum to 0 because we'll be using it as part of our primary key in redshift
+    clean_df = (
+        clean_df
+        .withColumn('admnum', F.when(F.isnull('admnum'), 0).otherwise(F.col('admnum')))
+    )
+
     logger.info("Adding the ML Label")
     # add the label column for the ML problem, check the Data Exploration notebook for the explanation of why
     # these conditions were chosen
@@ -174,12 +189,12 @@ def clean_immigration_data(raw_data):
         "is_overstay",
         F.when(
             (
-                (clean_df.dates_match_flag == False) & # the departure and permitted dates don't match
-                (clean_df.unrestricted_stay == False) & # the visa type is not one that grants unrestricted stay (i.e the match flag would then be wrong), ex. F2 visa
-                 # the traveller hasn't departed yet, we use an & because in most of the cases when one is filled an the other is not, the visa a WT visa and the entdepd is a W (Waiver), 
-                 # so the visa probably got extended somewhow and they shdouldn't be considered overstayers
+                (clean_df.dates_match_flag == False) &  # the departure and permitted dates don't match
+                (clean_df.unrestricted_stay == False) &  # the visa type is not one that grants unrestricted stay (i.e the match flag would then be wrong), ex. F2 visa
+                # the traveller hasn't departed yet, we use an & because in most of the cases when one is filled an the other is not, the visa a WT visa and the entdepd is a W (Waiver),
+                # so the visa probably got extended somewhow and they shdouldn't be considered overstayers
                 ((F.isnull(clean_df.departure_date)) & ((F.isnull(clean_df.entdepd)))) &
-                (F.isnull(clean_df.entdepu)) # the visa's status wasn't updated
+                (F.isnull(clean_df.entdepu))  # the visa's status wasn't updated
             ),
             True
         ).otherwise(False)
@@ -191,6 +206,8 @@ def create_staging_immigration_data(immigration_df, country_df, country_iso_df, 
     """
     Create the staging immigration data to be used for later steps by joining the different raw dataframes
     """
+
+    logger.info("Creating the staging immigration data")
 
     joined_df = (
         immigration_df
@@ -207,7 +224,7 @@ def create_staging_immigration_data(immigration_df, country_df, country_iso_df, 
         )
         .join(
             F.broadcast(states_df.alias("states_df")),
-            F.col("immigration.destination_state") == F.col("states_df.state_id"),
+            F.col("immigration.destination_state") == F.col("states_df.state_code"),
             "leftouter"
         )
         .join(
@@ -226,12 +243,12 @@ def create_staging_immigration_data(immigration_df, country_df, country_iso_df, 
             "inner"  # inner join will lead to removal of invalid and dissolved countries (ex. Netherlands Antilles, Yugoslavia), about 1849 records
         )
         # remove invalid states
-        .withColumn("destination_state", F.when(F.isnull('states_df.state_id'), F.lit(None)).otherwise(F.col('immigration.destination_state')))
+        .withColumn("destination_state", F.when(F.isnull('states_df.state_code'), F.lit(None)).otherwise(F.col('immigration.destination_state')))
         .selectExpr(
             "immigration.*",
             "destination_state",
-            "cit_iso_df.iso_code_3 as country_citizenship",
-            "res_iso_df.iso_code_3 as country_residence",
+            "cit_iso_df.country_code as country_citizenship",
+            "res_iso_df.country_code as country_residence",
             "TRIM(port_df.port_name) as port_name"
         )
     )
@@ -239,3 +256,13 @@ def create_staging_immigration_data(immigration_df, country_df, country_iso_df, 
     joined_df = joined_df.select(final_columns)
 
     return joined_df
+
+
+def create_visa_type_data(immigration_data):
+    """
+    Create the Visa type data frame used as a dimension table
+    """
+
+    logger.info("Creating the visa type staging data")
+
+    return immigration_data.select("visa_type", "visa_category").distinct()

@@ -18,7 +18,7 @@ def normalize_gender(x):
     if x in {"M", "F"}:
         return x
     elif x is None:
-        return None
+        return "UNSPECIFIED"
     else:
         return "OTHER"
 
