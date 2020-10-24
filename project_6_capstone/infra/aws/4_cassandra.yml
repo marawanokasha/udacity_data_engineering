@@ -75,6 +75,7 @@ Resources:
             - - !Ref resourcePrefix
               - cassandra-subnet
 
+  # give internet access to the subnet
   cassandraSubnetRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -112,6 +113,7 @@ Resources:
 
   ################################################
   ########## EC2 Instance
+  # based on https://aws.amazon.com/marketplace/pp/prodview-7l2i3ngqrah46
   
   cassandraNode:
     Type: 'AWS::EC2::Instance'
@@ -289,6 +291,7 @@ Resources:
           # Signal cfn-init (final check)
 
           [ $(qs_status) == 0 ] && cfn_success || cfn_fail
+
 Outputs:
   cassandraPrivateIpAddress:
     Value: !<!GetAtt> cassandraNode.PrivateIp

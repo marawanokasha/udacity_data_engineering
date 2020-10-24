@@ -40,6 +40,18 @@ Resources:
         - - !Ref resourcePrefix
           - util-bucket
 
+  dataResourceGroup:
+    Type: "AWS::ResourceGroups::Group"
+    Properties:
+      Name: !Join 
+        - ''
+        - - !Ref resourcePrefix
+          - -data-resource-group
+      ResourceQuery:
+        Type: CLOUDFORMATION_STACK_1_0
+        Query:
+          StackIdentifier: !Ref AWS::StackId
+
 Outputs:
   rawBucketName:
     Value: !Ref rawDataBucket

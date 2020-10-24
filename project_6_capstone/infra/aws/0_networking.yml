@@ -46,6 +46,18 @@ Resources:
        DestinationCidrBlock: 0.0.0.0/0
        GatewayId: !Ref projectVPCInternetGateway
   
+  networkingResourceGroup:
+    Type: "AWS::ResourceGroups::Group"
+    Properties:
+      Name: !Join 
+        - ''
+        - - !Ref resourcePrefix
+          - -networking-resource-group
+      ResourceQuery:
+        Type: CLOUDFORMATION_STACK_1_0
+        Query:
+          StackIdentifier: !Ref AWS::StackId
+
 Outputs:
   projectVPC:
     Description: 'Project VPC'

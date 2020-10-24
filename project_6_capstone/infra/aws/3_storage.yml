@@ -71,6 +71,13 @@ Resources:
             - - !Ref resourcePrefix
               - redshift-subnet
 
+  # give internet access to the subnet
+  redshiftSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref redshiftSubnet
+      RouteTableId: !ImportValue 'projectVPCRouteTable'
+
   redshiftSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
@@ -84,10 +91,16 @@ Resources:
           FromPort: 5439
           ToPort: 5439
           CidrIp: 0.0.0.0/0
-          Description: 'Public access to the redshift cluster'  
+          Description: 'Public access to the redshift cluster port'  
       SecurityGroupEgress:
         - IpProtocol: "-1"
           CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref resourcePrefix
+              - redshift-security-group
 
   redshiftClusterSubnetGroup:
     Type: 'AWS::Redshift::ClusterSubnetGroup'
@@ -145,11 +158,9 @@ Resources:
 Outputs:
   redshiftRoleArn:
     Value: !GetAtt redshiftRole.Arn
-  redshiftClusterId:
+  redshiftClusterName:
     Value: !Ref redshiftCluster
   redshiftClusterPublicDNS:
     Value: !GetAtt redshiftCluster.Endpoint.Address
   redshiftClusterPublicPort:
     Value: !GetAtt redshiftCluster.Endpoint.Port
-  cassandraKeyspaceName:
-    Value: !Ref cassandraKeyspace

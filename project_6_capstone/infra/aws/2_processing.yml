@@ -133,15 +133,15 @@ Resources:
         - - 's3://'
           - !Ref emrLogsBucket
           - /emr-logs
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref resourcePrefix
+              - emr-cluster
 
   ################################################
   ########## Networking
-
-  emrSubnetRouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref emrSubnet
-      RouteTableId: !ImportValue 'projectVPCRouteTable'
 
   emrSubnet:
     Type: AWS::EC2::Subnet
@@ -160,6 +160,13 @@ Resources:
             - '-'
             - - !Ref resourcePrefix
               - emr-subnet
+
+  # give internet access to the subnet
+  emrSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref emrSubnet
+      RouteTableId: !ImportValue 'projectVPCRouteTable'
 
   emrMasterSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -182,6 +189,12 @@ Resources:
       SecurityGroupEgress:
         - IpProtocol: "-1"
           CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref resourcePrefix
+              - emr-master-security-group
 
   emrSlaveSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -198,6 +211,12 @@ Resources:
       SecurityGroupEgress:
         - IpProtocol: "-1"
           CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Join 
+            - '-'
+            - - !Ref resourcePrefix
+              - emr-slave-security-group
 
   emrMasterSecurityGroupIngressAllowMasterTCP:
     Type: AWS::EC2::SecurityGroupIngress
@@ -279,13 +298,13 @@ Resources:
       ToPort: -1
       SourceSecurityGroupId: !Ref emrSlaveSecurityGroup
   
-  projectResourceGroup:
+  processingResourceGroup:
     Type: "AWS::ResourceGroups::Group"
     Properties:
       Name: !Join 
         - ''
         - - !Ref resourcePrefix
-          - -resource-group
+          - -processing-resource-group
       ResourceQuery:
         Type: CLOUDFORMATION_STACK_1_0
         Query:
