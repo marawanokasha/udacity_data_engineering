@@ -1,59 +1,45 @@
-import sys
-import os
-import logging
-
-from flask import Flask, render_template, request
-from PIL import Image
-import numpy as np
-
-app = Flask(__name__)
-config = InferenceConfig()
-
-UPLOADS_FOLDER = "./uploads"
-app.config['UPLOAD_FOLDER'] = UPLOADS_FOLDER
-
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
-
-predictor = SegmentationPredictorFactory.create_predictor(config)
-serializer = ImageBase64Serializer()
+import cassandra
+import pandas as pd
+from cassandra.cluster import Cluster, Session
+from config import CASSANDRA_HOST, CASSANDRA_PORT, CASSANDRA_KEYSPACE
 
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+def get_cassandra_session() -> Session:
+    cluster = Cluster([CASSANDRA_HOST], port=CASSANDRA_PORT)
+    session = cluster.connect()
+    session.set_keyspace(CASSANDRA_KEYSPACE)
+
+    return session
 
 
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    """
-    Handle the form post by saving the uploaded file and then sending it through the predictor class
-    to get the output segmentation results
-
-    :return:
-    """
-    logging.info("Received Uploaded File")
-    file = request.files['image']
-    f = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-    file.save(f)
-
-    img = Image.open(f)
-    img = np.array(img)
-
-    logging.info(img.shape)
-
-    logging.info("Segmenting")
-    result = predictor.get_segmentation_result(img)
-    logging.info("Finished Segmentation")
-
-    predicted_image = result["raw_prediction"]
-
-    return render_template('index.html', init=True,
-                           inimg=serializer.serialize(img),
-                           result=serializer.serialize(predicted_image))
+def get_immigration_stats(session) -> pd.DataFrame:
+    result = session.execute("""
+        SELECT country_code_iso_2, COUNT(*) AS count
+        FROM immigration_stats
+        GROUP BY country_code_iso_2
+    """)
+    return pd.DataFrame(result)
 
 
-if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
-    # Start server
-    app.run(host='0.0.0.0', port=7000, debug=False)
+def get_countries(session) -> pd.DataFrame:
+    result = session.execute("""
+        SELECT country_code, country_name
+        FROM country
+    """)
+    return pd.DataFrame(result)
+
+
+def get_states(session) -> pd.DataFrame:
+    result = session.execute("""
+        SELECT state_code, state_name
+        FROM state
+    """)
+    return pd.DataFrame(result)
+
+
+def get_visa_types(session) -> pd.DataFrame:
+    result = session.execute("""
+        SELECT visa_type
+        FROM visa_type
+    """)
+    return pd.DataFrame(result)
