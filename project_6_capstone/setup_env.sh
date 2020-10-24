@@ -31,32 +31,35 @@ if [[ "$GET_STACK_VARS" -eq 1 ]]; then
     
     if output=$(aws cloudformation describe-stacks --stack-name $DATA_STACK_NAME --output text); then
         echo "---- Importing Data Stack variables"
-        RAW_DATA_BUCKET_NAME=$(echo $output | grep -oP "OUTPUTS\s+rawBucketName\s+\K(.*)")
-        STAGING_DATA_BUCKET_NAME=$(echo $output | grep -oP "OUTPUTS\s+stagingBucketName\s+\K(.*)")
-        UTIL_BUCKET_NAME=$(echo $output | grep -oP "OUTPUTS\s+utilBucketName\s+\K(.*)")
+        RAW_DATA_BUCKET_NAME=$(echo $output | grep -oP "OUTPUTS\s+rawBucketName\s+\K([\w-\.]*)")
+        STAGING_DATA_BUCKET_NAME=$(echo $output | grep -oP "OUTPUTS\s+stagingBucketName\s+\K([\w-\.]*)")
+        UTIL_BUCKET_NAME=$(echo $output | grep -oP "OUTPUTS\s+utilBucketName\s+\K([\w-\.]*)")
     else
         echo "---- Data Stack not found, skipping" 
     fi
 
     if output=$(aws cloudformation describe-stacks --stack-name $PROCESSING_STACK_NAME --output text); then
         echo "---- Importing Processing Stack variables"
-        EMR_HOST=$(echo $output | grep -oP "OUTPUTS\s+emrClusterPublicDNS\s+\K(.*)")
-        EMR_LOGS_BUCKET_NAME=$(echo $output | grep -oP "OUTPUTS\s+emrLogsBucketName\s+\K(.*)")
+        EMR_CLUSTER_ID=$(echo $output | grep -oP "OUTPUTS\s+emrClusterId\s+\K([\w-\.]*)")
+        EMR_HOST=$(echo $output | grep -oP "OUTPUTS\s+emrClusterPublicDNS\s+\K([\w-\.]*)")
+        EMR_LOGS_BUCKET_NAME=$(echo $output | grep -oP "OUTPUTS\s+emrLogsBucketName\s+\K([\w-\.]*)")
     else
         echo "---- Processing Stack not found, skipping" 
     fi
 
     if output=$(aws cloudformation describe-stacks --stack-name $STORAGE_STACK_NAME --output text); then
         echo "---- Importing Storage Stack variables"
-        REDSHIFT_HOST=$(echo $output | grep -oP "OUTPUTS\s+redshiftClusterPublicDNS\s+\K(.*)")
-        REDSHIFT_PORT=$(echo $output | grep -oP "OUTPUTS\s+redshiftClusterPublicPort\s+\K(.*)")
+        REDSHIFT_IAM_ROLE=$(echo $output | grep -oP "OUTPUTS\s+redshiftRoleArn\s+\K([\w-\.:/]*)")
+        REDSHIFT_CLUSTER_NAME=$(echo $output | grep -oP "OUTPUTS\s+redshiftClusterName\s+\K([\w-\.]*)")
+        REDSHIFT_HOST=$(echo $output | grep -oP "OUTPUTS\s+redshiftClusterPublicDNS\s+\K([\w-\.]*)")
+        REDSHIFT_PORT=$(echo $output | grep -oP "OUTPUTS\s+redshiftClusterPublicPort\s+\K([\w-\.]*)")
     else
         echo "---- Storage Stack not found, skipping" 
     fi
 
     if output=$(aws cloudformation describe-stacks --stack-name $CASSANDRA_STACK_NAME --output text); then
         echo "---- Importing Cassandra Stack variables"
-        CASSANDRA_HOST=$(echo $output | grep -oP "OUTPUTS[\s\w]+cassandraPublicIpAddress\s+\K(.*)")
+        CASSANDRA_HOST=$(echo $output | grep -oP "OUTPUTS[\s\w]+cassandraPublicIpAddress\s+\K([\w-\.]*)")
     else
         echo "---- Cassandra Stack not found, skipping" 
     fi

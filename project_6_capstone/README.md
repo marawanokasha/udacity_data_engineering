@@ -164,7 +164,7 @@ source ./setup_env.sh
 ### Airflow    
 1. Install Airflow
     ```
-    ./infra/airflow/setup_airflow.sh
+    source ./infra/airflow/setup_airflow.sh
     ```
 1. Prepare the environment
     ```
