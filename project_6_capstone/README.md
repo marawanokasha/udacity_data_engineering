@@ -1,215 +1,230 @@
-## Installation
+# Udacity Capstone Project
 
-### Configuration
+## Project Description
 
-All the different elements in this project rely on a unified set of environment variables, that should be placed in the file `.env` at the root. Check the file `.env.template` for the values needed. In order to source the environment and prepare the environment variables, run:
-```
-source ./setup_env.sh
-```
+The purpose of this project is to create an infrastructure to enable the ad-hoc analysis of patterns of entry to the United states using immigration data, as well as creating a machine learning model based on this data to enable the user to predict the probability that a specific passenger with some features would overstay his visa.
 
-### Infrastructure
+## Data Sources
 
-1. Install the AWS CLI
-    ```
-    curl "https://s3.amazonaws.com/aws-cli/awscli-bundle.zip" -o "awscli-bundle.zip"
-    unzip awscli-bundle.zip
-    ./awscli-bundle/install -b ~/bin/aws
-    ```
-1. Configure AWS CLI
-    ```
-    aws configure --profile udacity
-    ```
+- U.S immigration data from 2016 provided in SAS format. Contains records of arrivals of non-immigration passengers including information about their demographics, the kind of visa they were admitted with, and how they arrived
+- Country GDP data ([Source](https://datahub.io/core/gdp/r/gdp.csv)): Contains yearly GDP data for all countries
+- Country Codes data ([Source](https://github.com/lukes/ISO-3166-Countries-with-Regional-Codes/blob/master/all/all.csv)): Simple listing of countries containing their ISO-2 and ISO-3 codes, names and continents
+- States Codes Data ([Source](https://github.com/jasonong/List-of-US-States/blob/master/states.csv)): Simple listing of U.S. states with their codes and names
 
-1. Create the Infrastructure needed with cloudformation
+## Tools Used
 
-    - From the AWS console, choose whichever region where you want to deploy the infrastrucutre in, go to EC2 -> Key Pairs and create a new key pair, ex. `udacity_ec2_key`, this is the SSH Key that will be used for the Spark and Redshift clusters
+- Airflow: for orchestrating and running the data pipelines
+- Spark / EMR: for doing the heavy lifting of data transformation and copying
+- Redshift: Serves as a final place to save the cleaned data saved as a start schema so that ad-hoc analysis can be easily performed
+- S3: Serves as a staging ground between the different steps of the pipeline
+- Cassandra: Used as a backend DB for the web application. Allows incredibly fast retrieval of data for specific queries. 
+- Cloudformation: For automatic the provisioning and destruction of infrastructure
+- Sklearn: for training an ML model for overstay prediction
+- Flask: for creating a small web application for displaying statistics about the immigration data and allowing the user to interact with the ML model
 
-    - create the cloudformation stack. This will create the following resources:
-        - S3 bucket for raw data
-        - S3 bucket for staging data
-        - VPC
-        - Subnet for Redshift
-        - Subnet for EMR
-        - EMR cluster
-        - Redshift cluster
-    ```
+## Data Flow
 
-    source ./setup_env.sh --no-cf
+### Big Picture
+![alt text](docs/images/project_overview.png "Project Overview")
 
-    # networking infrastructure
-    aws cloudformation deploy \
-        --region $AWS_REGION \
-        --stack-name $NETWORKING_STACK_NAME \
-        --template-file ./infra/aws/0_networking.yml \
-        --tags project=udacity-capstone
+![alt text](docs/images/all_dags.png "All DAGS")
 
-    # data infrastructure
-    aws cloudformation deploy \
-        --region $AWS_REGION \
-        --stack-name $DATA_STACK_NAME \
-        --template-file ./infra/aws/1_data.yml \
-        --tags project=udacity-capstone \
-        --parameter-overrides \
-        rawBucketName=raw-data \
-        stagingBucketName=staging-data
+### Steps Involved
 
-    UTIL_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $DATA_STACK_NAME --output text | grep -oP "OUTPUTS\s+utilBucketName\s+\K(.*)")
+#### Local Data Copy to an S3 Bucket
+![alt text](docs/images/copy_data_dag.png "Copy Data DAG")
 
-    # copy the EMR server initialization script to a bucket where EMR can download it during bootstrapping
-    aws s3 cp ./infra/spark/emr_server_setup.sh s3://$UTIL_BUCKET_NAME/
+Airflow DAG Code: [./airflow/dags/copy_files_dag.py](./airflow/dags/copy_files_dag.py)
 
-    # EMR infrastructure
-    aws cloudformation deploy \
-        --region $AWS_REGION \
-        --stack-name $PROCESSING_STACK_NAME \
-        --template-file ./infra/aws/2_processing.yml \
-        --capabilities CAPABILITY_NAMED_IAM \
-        --tags project=udacity-capstone \
-        --parameter-overrides \
-        resourcePrefix=udacity-capstone \
-        sshKeyName=$AWS_SSH_KEY \
-        bootstrapActionFilePath=s3://$UTIL_BUCKET_NAME/emr_server_setup.sh
+This step simply copies data stored locally and retrieved online into a raw data bucket in S3 so the next steps can all be performed using cloud tools. The data involved is:
+- Immigration data: local
+- Dimension data:
+    - States Codes Data: local
+    - Country Code Data: local
+    - Country GDP Data: Download on the fly from the internet location and saved to S3
 
-    # redshift infrastructure
-    aws cloudformation deploy \
-        --region $AWS_REGION \
-        --stack-name $STORAGE_STACK_NAME \
-        --template-file ./infra/aws/3_storage.yml \
-        --capabilities CAPABILITY_NAMED_IAM \
-        --tags project=udacity-capstone \
-        --parameter-overrides \
-        resourcePrefix=udacity-capstone \
-        databaseName=$REDSHIFT_DB_NAME \
-        masterUsername=$REDSHIFT_MASTER_USERNAME \
-        masterPassword=$REDSHIFT_MASTER_PASSWORD
+#### Data Cleanup and Preparation for Staging
 
-    
-    # cassandra infrastructure
-    # agree to the terms in https://aws.amazon.com/marketplace/pp/prodview-7l2i3ngqrah46 to get access to the cassandra IAM
-    aws cloudformation deploy \
-        --region $AWS_REGION \
-        --stack-name $CASSANDRA_STACK_NAME \
-        --template-file ./infra/aws/4_cassandra.yml \
-        --tags project=udacity-capstone \
-        --parameter-overrides \
-        sshKeyName=$AWS_SSH_KEY
+![alt text](docs/images/data_processing_dag.png "Data Processing DAG")
 
-    ```
+Airflow DAG Code: [./airflow/dags/processing_dag_emr.py](./airflow/dags/processing_dag_emr.py)
 
-1. Delete the Cloudformation stacks after you are done
+This step takes care of cleaning the data and generating the staging data used for the next steps. It does [multiple transformations and cleanups](./spark/src/lib//processing.py) on the source immigration data and more importantly adds some derived fields that are used in the later steps.
 
-    ```
-    aws cloudformation delete-stack --stack-name $CASSANDRA_STACK_NAME
-    aws cloudformation delete-stack --stack-name $STORAGE_STACK_NAME
-    aws cloudformation delete-stack --stack-name $PROCESSING_STACK_NAME
-    aws cloudformation delete-stack --stack-name $DATA_STACK_NAME
-    aws cloudformation delete-stack --stack-name $NETWORKING_STACK_NAME
+Two data representations are generated by this step
+- Star Schema representation: This is the representation intended to eventually be saved in Redshift. A star schema was chosen because it lends itself quite well for the use in ad-hoc analysis
+- ML Data representation: single data frame containing all the data needed to traing the ML model
 
-    # remove the bucket forcibly since cloudformation can't delete a non-empty bucket
-    aws s3 rb --force s3://$EMR_LOGS_BUCKET_NAME
-    ```
-
-### Spark, Livy and Sparkmagic
-
-1. Install Requirements
-    ```
-    sudo apt-get install openssh-client
-    ```
-
-1. Install Spark Magic
-
-    - Linux installation:
-    ```
-    pip install sparkmagic
-    # enable the jupyter widgets
-    jupyter nbextension enable --py --sys-prefix widgetsnbextension
-    jupyter labextension install "@jupyter-widgets/jupyterlab-manager"
-    # install the pyspark kernel so you don't have to use %%spark to execute all spark code
-    cd $(pip show sparkmagic | grep Location: | cut -c 11-)
-    jupyter-kernelspec install sparkmagic/kernels/pysparkkernel
-    jupyter serverextension enable --py sparkmagic
-    ```
+Both representations are written in the S3 Staging bucket at the end of this step
 
 
-    - Windows installation:
-    ```
-    conda install -c conda-forge sparkmagic
-    conda install -c conda-forge jupyter_nbextensions_configurator
+#### Train ML Model
 
-    # go to the sparkmagic location as given by pip show sparkmagic
-    cd C:/<spark magic location>
+![alt text](docs/images/train_ml_model_dag.png "Train ML Model DAG")
 
-    jupyter-kernelspec install sparkmagic/kernels/pysparkkernel
-    jupyter serverextension enable --py sparkmagic
-    ```
-    
-1. Create a bridge connection to the livy server
-    ```
-    ssh -i ~/.ssh/udacity_ec2_key.pem -4 -NL 8998:$EMR_HOST:8998 hadoop@$EMR_HOST
-    ```
-    we use `-4` is because ipv6 is the default and it leads to an error `unable to bind to address`
+Airflow DAG Code: [./airflow/dags/train_ml_model_dag.py](./airflow/dags/train_ml_model_dag.py)
 
-1. Create a dynamic bridge to be able to see all internal UIs
-    ```
-    ssh -i ~/.ssh/udacity_ec2_key.pem -ND 8157 hadoop@$EMR_HOST
-    ```
+This step uses the ML data saved in the staging bucket from the previous step and uses it to train an ML model using scikit-learn. The training happens on the driver of the EMR cluster, and one other option would have been the use of Spark ML for training the ML model. I decided against this option because my intention was to host this model on a web application and I didn't the web app to to have a dependency on the existence of a spark cluster.
 
-1. Upload the Spark Jobs and libraries to S3 so they can be used by the Spark jobs
-    ```
-    cd ./spark/src/lib && zip -FS -r ../../dist/lib.zip . && cd -
-    aws s3 cp --recursive ./spark/src/jobs s3://$UTIL_BUCKET_NAME/spark/jobs/
-    aws s3 cp ./spark/dist/lib.zip s3://$UTIL_BUCKET_NAME/spark/
-    ```
 
-### Airflow    
-1. Install Airflow
-    ```
-    source ./infra/airflow/setup_airflow.sh
-    ```
-1. Prepare the environment
-    ```
-    source ./setup_env.sh
-    ```
+#### Copy To Redshift
 
-1. Add Airflow connections and variables
-    ```
-    source ./infra/airflow/init_airflow.sh
-    ```
+![alt text](docs/images/copy_to_redshift_dag.png "Copy to Redshift DAG")
 
-1. Start Airflow
-    ```
-    airflow scheduler -D & airflow webserver -D
-    ```
+Airflow DAG Code: [./airflow/dags/copy_to_redshift.py](./airflow/dags/copy_to_redshift.py)
 
-1. Start tunnel for Livy
-    ```
-    # install the SSH client if needed
-    sudo apt-get install -y openssh-client
-    ssh -i ~/.ssh/udacity_ec2_key.pem -4 -NL 8998:$EMR_HOST:8998 hadoop@$EMR_HOST
-    ```
+This step copies the data saved in the staging bucket to the Redshift cluster, using an intermediate JSON dump in S3, then a `COPY` command to Redshift. I tried to use jdbc in Spark to access the DB and 
+insert directly into Redshift but it was seriously 2 orders of magnitude slower than using the `COPY` command, so I went with this solution.
 
-1. Stop Airflow
-    ```
-    cat $AIRFLOW_HOME/airflow-scheduler.pid | xargs kill & rm $AIRFLOW_HOME/airflow-scheduler.pid
-    cat $AIRFLOW_HOME/airflow-webserver.pid | xargs kill & rm $AIRFLOW_HOME/airflow-webserver.pid $AIRFLOW_HOME/airflow-webserver-monitor.pid
-    ```
+#### Copy To Cassandra
 
-## Web application
+![alt text](docs/images/copy_to_cassandra_dag.png "Copy to Cassandra DAG")
 
-The companion web application uses the data stored in Cassandra to display a map showing the number of arrivals per country. It also uses the ML model that was trained by Spark to make predictions on whether a specific passenger will overstay his visa.
+Airflow DAG Code: [./airflow/dags/copy_to_cassandra.py](./airflow/dags/copy_to_cassandra.py)
 
-### Installation
+This step copies the data saved in the staging bucket to the Cassandra cluster after transforming it to fit the queries that will be issued by the web application (the main client for the cassandra DB).
 
-```
-cd web
-pip install -r requirements.txt
-```
 
-### Running 
+#### Web application
 
-```
-cd map_app
-python app.py
-```
+![alt text](docs/images/web_app.png "Immigration Map Web App")
 
-![alt text](web/web_app.png "Immigration Map App")
+Web App Code: [./web/map_app/app.py](./web/map_app/app.py)
+
+This is a simple web application that displays the data saved in cassandra on an interactive map, plus it uses the ML model trained previously to make live predictions for user inputs
+
+## Data Dictionary
+
+There are two final data sources for this project, the Redshift DB and Cassandra. They both share the same dimensional table structure, but differ in the fact table structure.
+
+### Redshift
+
+Schema: [./airflow/sql/create_tables.sql](./airflow/sql/create_tables.sql)
+
+Tables
+
+**immigration**: 
+
+Fact Table
+
+- **admnum** (BIGINT): unique identifier for passenger's admission, forms part of the primary key (*PK*)
+- **arrival_date** (DATE): date of arrival of passenger, forms part of the primary key (*PK*)
+- **country_citizenship** (VARCHAR(3)): 3-letter ISO code for the passenger's country of citizenship, forms part of the primary key (*PK*)
+- **country_residence** (VARCHAR(3)): 3-letter ISO code for the passenger's current country of residence
+- **destination_state** (VARCHAR(2)): 2-letter code for the passenger's destination state
+- **age** (INT): passenger's age at the time of arrival
+- **gender** (VARCHAR): passenger's gender
+- **visa_type** (VARCHAR): type of visa the user was admitted with
+- **num_previous_stays** (INT): number of times the passenger arrived and departed
+- **unrestricted_stay** (BOOL): flag for whether the passenger has an unrestricted stay due to his visa type. Check [./notebooks/Data Exploration.ipynb](./notebooks/Data Exploration.ipynb) for details on how this field was derived
+- **is_overstay** (BOOL): flag whether the passenger overstayed his visa. This is the target field for the ML model. Check [./notebooks/Data Exploration.ipynb](./notebooks/Data Exploration.ipynb) for details on how this field was derived
+- **year** (INT): year component of the arrival date
+- **month** (INT): month component of the arrival date
+- **day** (INT): day component of the arrival date
+
+**country**: 
+
+Dimension Table
+
+- **country_code** (VARCHAR(3)): 3-letter ISO code for the country
+- **country_code_iso_2** (VARCHAR(2)): 2-letter ISO code for the country
+- **country_name** (VARCHAR): country name
+- **continent** (VARCHAR): continent for the country
+
+**state**: 
+
+Dimension Table
+
+- **state_code** (VARCHAR(3)): 2-letter code for the state
+- **state_name** (VARCHAR): state name
+
+**visa_type**: 
+
+Dimension Table
+- **visa_type** (VARCHAR): code for the visa type
+- **visa_category** (VARCHAR): general category for the visa type
+
+**gdp**: 
+
+Dimension Table
+- **country_code** (VARCHAR(3)): 3-letter ISO code for the country
+- **year** (INT): year that the GDP was recorded. We only keep the latest year for each country
+- **gdp_value** (FLOAT): value for the GDP in dollars
+
+
+
+### Cassandra
+
+Schema: [./airflow/sql/cql](./airflow/sql/cql)
+
+Tables
+
+**immigration_stats**: 
+
+Fact Table
+- **country_code_iso_2** (TEXT): 2-letter ISO code for the country
+- **year** (INT): year component of the arrival date
+- **month** (INT): month component of the arrival date
+- **day** (INT): day component of the arrival date
+- **count** (INT): number of arrivals in this day
+
+**country**: 
+
+Dimension Table
+- **country_code** (TEXT): 3-letter ISO code for the country
+- **country_code_iso_2** (TEXT): 2-letter ISO code for the country
+- **country_name** (VARCHAR): country name
+- **continent** (VARCHAR): continent for the country
+
+**state**: 
+
+Dimension Table
+- **state_code** (TEXT): 2-letter code for the state
+- **state_name** (TEXT): state name
+
+**visa_type**: 
+
+Dimension Table
+- **visa_type** (TEXT): code for the visa type
+- **visa_category** (TEXT): general category for the visa type
+
+**gdp**: 
+
+Dimension Table
+- **country_code** (TEXT): 3-letter ISO code for the country
+- **year** (INT): year that the GDP was recorded. We only keep the latest year for each country
+- **gdp_value** (FLOAT): value for the GDP in dollars
+
+
+## Project Discussion
+
+### Choice of tools
+
+We use cloud (AWS) tools throughout the project which, aided with cloudformation, allows us to easily create and destroy infrastructure as needed.
+
+**Airflow**: Used for managing the data pipelines instead of having to write python scripts to cobble together the different steps of each pipeline
+
+**Redshift**: Relational database using SQL which is familiar for analysts, plus it uses a columnar storage, so very efficient for aggregations.
+
+**Cassandra**: We first thought about using Redshift as the backend for our web app too, but it didn't seem like a good fit because a data warehouse is oriented towards ad-hoc offline kinds of queries and not simple repeated queries as is needed by the web app. Cassandra would be able to offer a much better throughput than Redshift, plus if the web app gets accessed by more and more people, the redshift cluster wouldn't have to be innundated by those queries and the cassandra cluster can be scaled independently.
+
+**Spark/EMR**: We made a point to use Spark / EMR instead of using pandas for example to make sure that we have a scalable infrastructure that can transparently and cost-effectively handle an increase in the amount of data without having to rely on vertical scaling that will eventually become prohibitively expensive
+
+**S3**: Cost-effective globally-reachable cloud storage allowing the saving of the intermediate states of our computational flow, so that all the different components (Airflow, Redshift, Spark) have a common source / destination and where the computation is occuring doesn't matter
+
+### Data Update frequency
+
+The immigration data should be updated daily, the ML model can probably be re-trained monthly without a loss of accuracy.
+
+### Scenarios:
+
+**Data Increased by 100x**: Due to the fact that we use AWS components in all our pipelines, we would only need to scale the processing capacity of our EMR and Redshift clusters (and possibly Cassandra, even though the data stored there is in aggregated form). This is easily doable using the [cloudformation templates](./infra/aws) provided 
+
+**Daily Update**: We partition the data [by day when writing to S3](./spark/src/jobs/run_data_processin.py) and we use mode `overwrite` when saving, so doing partial updates and copies to Redshift and Cassandra should be quite easy, because the new partition will be added to S3, but it won't overwrite the old partitions
+
+**Database needs to be accessed by 100+ people**: This will depend on the sort of queries these people will issue. If it's ad-hoc queries, we'll need to scale the Redshift cluster. If it's fixed queries (similar to what we have in the web app), then directing them to the cassandra cluster may be the best solution
+
+
+## Installation and Running
+
+Please check the [Installation Guide](./docs/installation_guide.md) for a step by step explanation of how to setup the infrastructure and run the different pipelines.
