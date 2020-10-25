@@ -13,14 +13,14 @@ The purpose of this project is to create an infrastructure to enable the ad-hoc 
 
 ## Tools Used
 
-- Airflow: for orchestrating and running the data pipelines
-- Spark / EMR: for doing the heavy lifting of data transformation and copying
-- Redshift: Serves as a final place to save the cleaned data saved as a start schema so that ad-hoc analysis can be easily performed
-- S3: Serves as a staging ground between the different steps of the pipeline
-- Cassandra: Used as a backend DB for the web application. Allows incredibly fast retrieval of data for specific queries. 
-- Cloudformation: For automatic the provisioning and destruction of infrastructure
-- Sklearn: for training an ML model for overstay prediction
-- Flask: for creating a small web application for displaying statistics about the immigration data and allowing the user to interact with the ML model
+- **Airflow**: for orchestrating and running the data pipelines
+- **Spark / EMR**: for doing the heavy lifting of data transformation and copying
+- **Redshift**: Serves as a final place to save the cleaned data saved as a start schema so that ad-hoc analysis can be easily performed
+- **S3**: Serves as a staging ground between the different steps of the pipeline
+- **Cassandra**: Used as a backend DB for the web application. Allows incredibly fast retrieval of data for specific queries. 
+- **Cloudformation**: For automatic the provisioning and destruction of infrastructure
+- **Sklearn**: for training an ML model for overstay prediction
+- **Flask**: for creating a small web application for displaying statistics about the immigration data and allowing the user to interact with the ML model
 
 ## Data Flow
 
@@ -116,8 +116,8 @@ Fact Table
 - **gender** (VARCHAR): passenger's gender
 - **visa_type** (VARCHAR): type of visa the user was admitted with
 - **num_previous_stays** (INT): number of times the passenger arrived and departed
-- **unrestricted_stay** (BOOL): flag for whether the passenger has an unrestricted stay due to his visa type. Check [./notebooks/Data Exploration.ipynb](./notebooks/Data Exploration.ipynb) for details on how this field was derived
-- **is_overstay** (BOOL): flag whether the passenger overstayed his visa. This is the target field for the ML model. Check [./notebooks/Data Exploration.ipynb](./notebooks/Data Exploration.ipynb) for details on how this field was derived
+- **unrestricted_stay** (BOOL): flag for whether the passenger has an unrestricted stay due to his visa type. Check [./notebooks/Data Exploration.ipynb](./notebooks/Data%20Exploration.ipynb) for details on how this field was derived
+- **is_overstay** (BOOL): flag whether the passenger overstayed his visa. This is the target field for the ML model. Check [./notebooks/Data Exploration.ipynb](./notebooks/Data%20Exploration.ipynb) for details on how this field was derived
 - **year** (INT): year component of the arrival date
 - **month** (INT): month component of the arrival date
 - **day** (INT): day component of the arrival date
@@ -195,6 +195,10 @@ Dimension Table
 - **year** (INT): year that the GDP was recorded. We only keep the latest year for each country
 - **gdp_value** (FLOAT): value for the GDP in dollars
 
+
+## Data Quality Checks
+
+After the load to Redshift, we conduct some [size and validity checks](./airflow/plugins/operators/redshift_data_quality.py) on the [redshift](./airflow/dags/copy_to_redshift.py) data. We also have primary key constraints on all the [tables](./airflow/sql/create_tables.sql).
 
 ## Project Discussion
 

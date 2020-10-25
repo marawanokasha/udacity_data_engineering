@@ -6,7 +6,7 @@ from airflow.contrib.operators.emr_add_steps_operator import \
     EmrAddStepsOperator
 from airflow.contrib.sensors.emr_step_sensor import EmrStepSensor
 from airflow.models import Variable
-from airflow.operators.cassandra_plugin import CassandraExecutorOperator
+from airflow.operators.capstone_plugin import CassandraExecutorOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.postgres_operator import PostgresOperator
 from capstone.constants import Connections, DAGVariables

@@ -6,10 +6,13 @@ from airflow.contrib.operators.emr_add_steps_operator import \
     EmrAddStepsOperator
 from airflow.contrib.sensors.emr_step_sensor import EmrStepSensor
 from airflow.models import Variable
+from airflow.operators.capstone_plugin import RedshiftDataQualityOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.postgres_operator import PostgresOperator
 from capstone.constants import Connections, DAGVariables
+from capstone.redshift_utils import DataQualityChecks
 from capstone.spark_utils import get_emr_add_steps_spec
+
 
 SPARK_JOB_FILE = "jobs/run_copy_for_redshift.py"
 
@@ -129,15 +132,19 @@ copy_gdp_table = PostgresOperator(
 )
 
 
-end_operator = DummyOperator(task_id='Stop_execution', dag=dag)
+data_quality_task = RedshiftDataQualityOperator(
+    task_id='run_data_quality_checks',
+    dag=dag,
+    redshift_conn_id=Connections.REDSHIFT_CONNECTION_ID,
+    test_cases=DataQualityChecks.QUERIES
+)
 
-# start_operator >> create_tables >> [
-#     copy_states_table, copy_countries_table, copy_gdp_table, copy_visa_type_table
-# ] >> end_operator
+
+end_operator = DummyOperator(task_id='Stop_execution', dag=dag)
 
 
 start_operator >> create_tables >> \
     copy_to_s3_task >> copy_to_s3_task_checker >> \
     copy_immigration_table >> [
         copy_states_table, copy_countries_table, copy_gdp_table, copy_visa_type_table
-    ] >> end_operator
+    ] >> data_quality_task >> end_operator

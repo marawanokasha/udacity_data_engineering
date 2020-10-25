@@ -19,8 +19,9 @@ CREATE TABLE IF NOT EXISTS public.state (
 
 CREATE TABLE IF NOT EXISTS public.visa_type (
 	visa_type VARCHAR,
-	visa_category VARCHAR
+	visa_category VARCHAR,
 
+	CONSTRAINT visa_type_pkey PRIMARY KEY (visa_type)
 ) DISTSTYLE ALL;
 
 
@@ -37,9 +38,9 @@ CREATE TABLE IF NOT EXISTS public.gdp (
 CREATE TABLE IF NOT EXISTS public.immigration (
 	admnum BIGINT,
 	arrival_date DATE,
-	year INT,
-	month INT,
-	day INT,
+	year INT NOT NULL,
+	month INT NOT NULL,
+	day INT NOT NULL,
 	country_citizenship VARCHAR(3),
 	country_residence VARCHAR(3),
  	destination_state VARCHAR(2),

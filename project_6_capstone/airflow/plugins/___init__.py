@@ -6,8 +6,8 @@ import operators
 
 
 # Defining the plugin class
-class CassandraPlugin(AirflowPlugin):
-    name = "cassandra_plugin"
+class CapstonePlugin(AirflowPlugin):
+    name = "capstone_plugin"
     operators = [
         operators.CassandraExecutorOperator,
     ]

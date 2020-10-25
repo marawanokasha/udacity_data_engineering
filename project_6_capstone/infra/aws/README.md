@@ -1,0 +1,1 @@
+Contains cloudformation templates for provisioning the project infrastructure

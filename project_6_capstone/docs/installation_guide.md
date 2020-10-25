@@ -1,4 +1,4 @@
-# Installation
+# Installation and Configuration Guide
 
 ## Configuration
 
@@ -128,7 +128,7 @@ These steps will help you to setup the AWS insfrastructure where all the pipelin
     airflow scheduler -D & airflow webserver -D
     ```
 
-1. Start tunnel for Livy
+1. Start tunnel for Livy (only needed if you want to run the `processing_dag_emr` DAG)
     ```
     # install the SSH client if needed
     sudo apt-get install -y openssh-client

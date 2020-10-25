@@ -57,7 +57,6 @@ def main(
         immigration_data
         .write
         .mode("overwrite")
-        .partitionBy("year", "month", "day")  # we partition by day so that if we want to run this every day, we don't overwrite the month partition
         .json(os.path.join(output_path, IMMIGRATION_TABLE))
     )
 
