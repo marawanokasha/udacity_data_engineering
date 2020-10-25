@@ -23,5 +23,7 @@ airflow variables --set cassandra_host $CASSANDRA_HOST
 airflow variables --set cassandra_port $CASSANDRA_PORT
 airflow variables --set cassandra_keyspace $CASSANDRA_KEYSPACE
 
-# initdb again so the examples don't show
+echo "============= Reinitializing the DB"
+# re-initialize the airflow DB so that the examples don't show
+# this command will fail because we reference variables in the DAGs that don't exist yet, that's why we have || true
 airflow initdb

@@ -32,9 +32,4 @@ sed -i "s|web_server_port = 8080|web_server_port = 3000|" $AIRFLOW_CF_FILE
 sed -i "s|load_examples = True|load_examples = False|" $AIRFLOW_CF_FILE
 sed -i "s|load_default_connections = True|load_default_connections = False|" $AIRFLOW_CF_FILE
 
-echo "============= Reinitializing the DB"
-# re-initialize the airflow DB so that the examples don't show
-# this command will fail because we reference variables in the DAGs that don't exist yet, that's why we have || true
-airflow initdb || true
-
 echo "AIRFLOW_HOME now set to $AIRFLOW_HOME"
