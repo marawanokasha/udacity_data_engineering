@@ -46,16 +46,15 @@ CREATE TABLE IF NOT EXISTS public.immigration (
 	age INT,
 	gender VARCHAR,
 	visa_type VARCHAR,
-	visa_category VARCHAR,
 	num_previous_stays INT,
 	unrestricted_stay BOOL,
-	is_overstay BOOL
+	is_overstay BOOL,
 
-	-- CONSTRAINT immigration_pkey PRIMARY KEY (
-    --     admnum, 
-    --     arrival_date,
-	-- 	   country_citizenship
-    -- )
+	CONSTRAINT immigration_pkey PRIMARY KEY (
+        admnum, 
+        arrival_date,
+		country_citizenship
+    )
 ) 
 DISTKEY(country_citizenship) 
 SORTKEY(arrival_date)
