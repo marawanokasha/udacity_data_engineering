@@ -224,7 +224,7 @@ The immigration data should be updated daily, the ML model can probably be re-tr
 
 **Data Increased by 100x**: Due to the fact that we use AWS components in all our pipelines, we would only need to scale the processing capacity of our EMR and Redshift clusters (and possibly Cassandra, even though the data stored there is in aggregated form). This is easily doable using the [cloudformation templates](./infra/aws) provided 
 
-**Daily Update**: We partition the data [by day when writing to S3](./spark/src/jobs/run_data_processin.py) and we use mode `overwrite` when saving, so doing partial updates and copies to Redshift and Cassandra should be quite easy, because the new partition will be added to S3, but it won't overwrite the old partitions
+**Daily Update**: We partition the data [by day when writing to S3](./spark/src/jobs/run_data_processing.py) and we use mode `overwrite` when saving, so doing partial updates and copies to Redshift and Cassandra should be quite easy, because the new partition will be added to S3, but it won't overwrite the old partitions
 
 **Database needs to be accessed by 100+ people**: This will depend on the sort of queries these people will issue. If it's ad-hoc queries, we'll need to scale the Redshift cluster. If it's fixed queries (similar to what we have in the web app), then directing them to the cassandra cluster may be the best solution
 

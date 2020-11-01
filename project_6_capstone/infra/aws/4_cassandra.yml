@@ -117,6 +117,8 @@ Resources:
   
   cassandraNode:
     Type: 'AWS::EC2::Instance'
+    # instruct cloudformation to wait for an explicit signal (which we call in UserData)
+    # You can comment it if the startup fails and then look at the error log in the node at /var/log/cloud-init-output.log
     CreationPolicy:
       ResourceSignal:
         Timeout: PT15M
